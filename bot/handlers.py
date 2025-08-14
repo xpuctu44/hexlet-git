@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from .keyboards import main_menu_kb, back_to_menu_kb
+from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb  # добавили клавиатуру выбора сложности
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 
@@ -22,6 +22,10 @@ class ProfileForm(StatesGroup):
 
 class GoalForm(StatesGroup):
 	desired_weight_kg = State()
+
+
+class ConnectOpenAI(StatesGroup):  # состояние для ввода персонального OpenAI ключа
+	api_key = State()
 
 
 @router.message(CommandStart())
@@ -120,6 +124,35 @@ async def process_goal(message: Message, state: FSMContext, storage: Storage) ->
 	await message.answer("Цель сохранена. Возврат в меню.", reply_markup=main_menu_kb())
 
 
+@router.callback_query(F.data == "menu_connect_openai")  # обработчик кнопки Подключить ChatGPT
+async def cb_connect_openai(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	await state.set_state(ConnectOpenAI.api_key)  # переходим к состоянию ввода ключа
+	await callback.message.edit_text(
+		"Отправьте ваш OpenAI API ключ (формата sk-...).\n"
+		"Чтобы удалить ключ и использовать общий из .env — отправьте слово УДАЛИТЬ.",
+		reply_markup=back_to_menu_kb(),
+	)
+	await callback.answer()
+
+
+@router.message(ConnectOpenAI.api_key)  # прием и сохранение ключа
+async def process_openai_key(message: Message, state: FSMContext, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user:
+		await message.answer("Пользователь не найден. Наберите /start")
+		await state.clear()
+		return
+	text = (message.text or "").strip()
+	if text.lower() in {"удалить", "delete", "remove"}:  # очистка ключа по слову
+		await storage.update_openai_key(user["user_id"], None)
+		await state.clear()
+		await message.answer("Ключ удалён. Будет использоваться ключ по умолчанию.", reply_markup=main_menu_kb())
+		return
+	await storage.update_openai_key(user["user_id"], text)  # сохраняем персональный ключ
+	await state.clear()
+	await message.answer("Ключ сохранён. Можно генерировать планы.", reply_markup=main_menu_kb())
+
+
 @router.callback_query(F.data == "menu_workout")
 async def cb_menu_workout(callback: CallbackQuery, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(callback.from_user.id)
@@ -128,7 +161,7 @@ async def cb_menu_workout(callback: CallbackQuery, storage: Storage) -> None:
 		await callback.answer()
 		return
 	await callback.message.edit_text("Готовлю тренировку на сегодня…")
-	text = make_workout_text(user)
+	text = make_workout_text(user, user.get("openai_api_key"))  # используем персональный ключ, если есть
 	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
 	await callback.answer()
 
@@ -140,10 +173,23 @@ async def cb_menu_meals(callback: CallbackQuery, storage: Storage) -> None:
 		await callback.message.edit_text("Пользователь не найден. Наберите /start")
 		await callback.answer()
 		return
+	# Сначала предлагаем выбрать сложность блюд
+	await callback.message.edit_text("Выберите сложность рациона на сегодня:", reply_markup=meals_complexity_kb())
+	await callback.answer()
+
+
+@router.callback_query(F.data.in_({"menu_meals_simple", "menu_meals_gourmet"}))  # выбор сложности
+async def cb_menu_meals_complexity(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user:
+		await callback.message.edit_text("Пользователь не найден. Наберите /start")
+		await callback.answer()
+		return
 	date_str = date.today().strftime("%Y-%m-%d")
 	cal = await storage.get_today_calories(user["user_id"], date_str)
+	complexity = "simple" if callback.data == "menu_meals_simple" else "gourmet"  # маппинг сложности
 	await callback.message.edit_text("Составляю питание на сегодня…")
-	text = make_meals_text(user, cal)
+	text = make_meals_text(user, cal, user.get("openai_api_key"), complexity)  # передаём сложность и ключ
 	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
 	await callback.answer()
 
@@ -164,3 +210,23 @@ async def maybe_calories_input(message: Message, storage: Storage) -> None:
 		return
 	await storage.set_daily_calories(user["user_id"], date_str, calories)
 	await message.answer("Принято! Данные об активности сохранены.")
+
+
+@router.message(F.text.regexp(r"^\d{1,2}([.,]\d{1,2})?$"))  # парсим часы сна (целые или с десятичной частью)
+async def maybe_sleep_input(message: Message, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user:
+		return
+	date_str = date.today().strftime("%Y-%m-%d")
+	if not await storage.has_pending_sleep(user["user_id"], date_str):  # проверяем ожидание
+		return
+	text = (message.text or "").strip().replace(",", ".")
+	try:
+		hours = float(text)
+		if hours <= 0 or hours > 24:
+			raise ValueError
+	except ValueError:
+		await message.answer("Пришлите количество часов сна (например, 7 или 7.5).")
+		return
+	await storage.set_daily_sleep_hours(user["user_id"], date_str, hours)
+	await message.answer("Спасибо! Часы сна сохранены.")

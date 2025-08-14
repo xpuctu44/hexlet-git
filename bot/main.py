@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from .config import load_config
 from .handlers import router as handlers_router
 from .middlewares import StorageMiddleware
-from .scheduler import start_evening_calories_prompt_loop
+from .scheduler import start_evening_calories_prompt_loop, start_morning_sleep_prompt_loop
 from .storage import Storage
 
 
@@ -35,6 +35,7 @@ async def main() -> None:
 	dispatcher.include_router(handlers_router)
 
 	await start_evening_calories_prompt_loop(bot, storage, config.notify_hour)
+	await start_morning_sleep_prompt_loop(bot, storage, config.sleep_notify_hour)
 
 	await dispatcher.start_polling(bot)
 

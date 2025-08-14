@@ -46,6 +46,16 @@ class Storage:
 				await db.execute("ALTER TABLE users ADD COLUMN openai_api_key TEXT")
 			except Exception:
 				pass
+			# Add sleep_hours column if missing (REAL to allow fractional hours)  # добавляем колонку часов сна, если её нет
+			try:
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL")  # может хранить дробные значения
+			except Exception:
+				pass  # колонка уже существует — игнорируем
+			# Add sleep_pending flag similar to calories pending  # флаг ожидания ввода часов сна на сегодня
+			try:
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")  # 0/1
+			except Exception:
+				pass  # колонка уже существует — игнорируем
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -176,6 +186,50 @@ class Storage:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"SELECT calories_burned FROM daily_activity WHERE user_id=? AND date=?",
+				(user_id, date_str),
+			)
+			row = await cursor.fetchone()
+			return None if not row else row[0]
+
+	async def set_daily_sleep_pending(self, user_id: int, date_str: str) -> None:
+		# Помечаем, что для пользователя ожидается ввод часов сна за текущую дату
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"""
+				INSERT INTO daily_activity(user_id, date, sleep_pending) VALUES(?,?,1)
+				ON CONFLICT(user_id, date) DO UPDATE SET sleep_pending=1
+				""",
+				(user_id, date_str),
+			)
+			await db.commit()
+
+	async def set_daily_sleep_hours(self, user_id: int, date_str: str, hours: float) -> None:
+		# Сохраняем часы сна и снимаем флаг ожидания
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"""
+				INSERT INTO daily_activity(user_id, date, sleep_hours, sleep_pending) VALUES(?,?,?,0)
+				ON CONFLICT(user_id, date) DO UPDATE SET sleep_hours=excluded.sleep_hours, sleep_pending=0
+				""",
+				(user_id, date_str, hours),
+			)
+			await db.commit()
+
+	async def has_pending_sleep(self, user_id: int, date_str: str) -> bool:
+		# Проверяем, ожидается ли ввод часов сна на эту дату
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"SELECT sleep_pending FROM daily_activity WHERE user_id=? AND date=?",
+				(user_id, date_str),
+			)
+			row = await cursor.fetchone()
+			return bool(row and row[0] == 1)
+
+	async def get_today_sleep_hours(self, user_id: int, date_str: str) -> Optional[float]:
+		# Получаем сохраненные часы сна за дату (если есть)
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"SELECT sleep_hours FROM daily_activity WHERE user_id=? AND date=?",
 				(user_id, date_str),
 			)
 			row = await cursor.fetchone()
