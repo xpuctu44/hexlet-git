@@ -6,6 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest  # для отлова ошибок правки сообщения
 
 from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb  # добавили клавиатуру выбора сложности
 from .storage import Storage
@@ -44,10 +45,16 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 
 @router.callback_query(F.data == "menu_root")
 async def cb_menu_root(callback: CallbackQuery) -> None:
-	await callback.message.edit_text(
-		"Главное меню:", reply_markup=main_menu_kb()
-	)
-	await callback.answer()
+	await callback.answer()  # отвечаем callback сразу, чтобы избежать таймаута
+	try:
+		await callback.message.edit_text(
+			"Главное меню:", reply_markup=main_menu_kb()
+		)
+	except TelegramBadRequest as e:
+		# Игнорируем ситуацию, когда сообщение не изменилось
+		if "message is not modified" in str(e):
+			return
+		raise
 
 
 @router.callback_query(F.data == "menu_profile")
