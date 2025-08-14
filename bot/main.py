@@ -1,44 +1,43 @@
 import asyncio
 import logging
-import os
 
-from aiogram import Bot, Dispatcher, F, Router
-from aiogram.types import Message
-from aiogram.filters import CommandStart
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
-
-load_dotenv()
-
-API_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not API_TOKEN:
-    raise SystemExit(
-        "Отсутствует переменная окружения TELEGRAM_BOT_TOKEN. Задайте её в .env или в окружении."
-    )
-
-bot = Bot(token=API_TOKEN, parse_mode="HTML")
-router = Router()
-
-
-@router.message(CommandStart())
-async def cmd_start(message: Message) -> None:
-    await message.answer(
-        "Привет! Я эхо-бот на aiogram 3. Отправь мне сообщение, и я повторю его."
-    )
-
-
-@router.message(F.text)
-async def echo_handler(message: Message) -> None:
-    await message.answer(message.text)
+from .config import load_config
+from .handlers import router as handlers_router
+from .middlewares import StorageMiddleware
+from .scheduler import start_evening_calories_prompt_loop
+from .storage import Storage
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    dispatcher = Dispatcher()
-    dispatcher.include_router(router)
+	load_dotenv()
+	config = load_config()
+	if not config.telegram_token:
+		raise SystemExit(
+			"Отсутствует TELEGRAM_BOT_TOKEN. Укажите его в .env или переменных окружения."
+		)
 
-    await dispatcher.start_polling(bot)
+	logging.basicConfig(level=logging.INFO)
+
+	bot = Bot(token=config.telegram_token, parse_mode="HTML")
+
+	fsm_storage = MemoryStorage()
+	dispatcher = Dispatcher(storage=fsm_storage)
+
+	storage = Storage(config.database_path)
+	await storage.initialize()
+
+	dispatcher.update.outer_middleware(StorageMiddleware(storage))
+
+	dispatcher.include_router(handlers_router)
+
+	await start_evening_calories_prompt_loop(bot, storage, config.notify_hour)
+
+	await dispatcher.start_polling(bot)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+	asyncio.run(main())

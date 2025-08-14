@@ -1,0 +1,166 @@
+from datetime import date
+from typing import Optional
+
+from aiogram import Router, F
+from aiogram.filters import CommandStart
+from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+
+from .keyboards import main_menu_kb, back_to_menu_kb
+from .storage import Storage
+from .openai_client import make_meals_text, make_workout_text
+
+
+router = Router()
+
+
+class ProfileForm(StatesGroup):
+	height_cm = State()
+	weight_kg = State()
+
+
+class GoalForm(StatesGroup):
+	desired_weight_kg = State()
+
+
+@router.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> None:
+	user_id = await storage.upsert_user(
+		tg_user_id=message.from_user.id,
+		chat_id=message.chat.id,
+		username=message.from_user.username,
+	)
+	await state.clear()
+	await message.answer(
+		"Привет! Я помогу с планом тренировок и питания. Выберите раздел меню:",
+		reply_markup=main_menu_kb(),
+	)
+
+
+@router.callback_query(F.data == "menu_root")
+async def cb_menu_root(callback: CallbackQuery) -> None:
+	await callback.message.edit_text(
+		"Главное меню:", reply_markup=main_menu_kb()
+	)
+	await callback.answer()
+
+
+@router.callback_query(F.data == "menu_profile")
+async def cb_menu_profile(callback: CallbackQuery, state: FSMContext) -> None:
+	await state.set_state(ProfileForm.height_cm)
+	await callback.message.edit_text(
+		"Введите ваш рост в сантиметрах (например, 180):",
+		reply_markup=back_to_menu_kb(),
+	)
+	await callback.answer()
+
+
+@router.message(ProfileForm.height_cm)
+async def process_height(message: Message, state: FSMContext) -> None:
+	text = (message.text or "").strip()
+	if not text.isdigit():
+		await message.answer("Пожалуйста, введите число в сантиметрах, например 180.")
+		return
+	await state.update_data(height_cm=int(text))
+	await state.set_state(ProfileForm.weight_kg)
+	await message.answer("Теперь введите ваш текущий вес в кг (например, 82.5):")
+
+
+@router.message(ProfileForm.weight_kg)
+async def process_weight(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").replace(",", ".").strip()
+	try:
+		weight = float(text)
+	except ValueError:
+		await message.answer("Введите число, например 82.5")
+		return
+	data = await state.get_data()
+	height_cm = int(data["height_cm"]) if "height_cm" in data else None
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if user is None:
+		await message.answer("Пользователь не найден. Наберите /start")
+		await state.clear()
+		return
+	await storage.update_profile(user_id=user["user_id"], height_cm=height_cm, weight_kg=weight)
+	await state.clear()
+	await message.answer(
+		"Профиль сохранен. Возврат в меню.", reply_markup=main_menu_kb()
+	)
+
+
+class CaloriesForm(StatesGroup):
+	calories = State()
+
+
+@router.callback_query(F.data == "menu_goals")
+async def cb_menu_goals(callback: CallbackQuery, state: FSMContext) -> None:
+	await state.set_state(GoalForm.desired_weight_kg)
+	await callback.message.edit_text(
+		"Введите желаемый вес в кг:", reply_markup=back_to_menu_kb()
+	)
+	await callback.answer()
+
+
+@router.message(GoalForm.desired_weight_kg)
+async def process_goal(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").replace(",", ".").strip()
+	try:
+		desired = float(text)
+	except ValueError:
+		await message.answer("Введите число, например 78")
+		return
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if user is None:
+		await message.answer("Пользователь не найден. Наберите /start")
+		await state.clear()
+		return
+	await storage.update_goal(user_id=user["user_id"], desired_weight_kg=desired)
+	await state.clear()
+	await message.answer("Цель сохранена. Возврат в меню.", reply_markup=main_menu_kb())
+
+
+@router.callback_query(F.data == "menu_workout")
+async def cb_menu_workout(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user:
+		await callback.message.edit_text("Пользователь не найден. Наберите /start")
+		await callback.answer()
+		return
+	await callback.message.edit_text("Готовлю тренировку на сегодня…")
+	text = make_workout_text(user)
+	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
+	await callback.answer()
+
+
+@router.callback_query(F.data == "menu_meals")
+async def cb_menu_meals(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user:
+		await callback.message.edit_text("Пользователь не найден. Наберите /start")
+		await callback.answer()
+		return
+	date_str = date.today().strftime("%Y-%m-%d")
+	cal = await storage.get_today_calories(user["user_id"], date_str)
+	await callback.message.edit_text("Составляю питание на сегодня…")
+	text = make_meals_text(user, cal)
+	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
+	await callback.answer()
+
+
+@router.message(F.text.regexp(r"^\d{2,5}$"))
+async def maybe_calories_input(message: Message, storage: Storage) -> None:
+	# Если от пользователя ожидаются калории за сегодня — записываем
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user:
+		return
+	date_str = date.today().strftime("%Y-%m-%d")
+	if not await storage.has_pending_calories(user["user_id"], date_str):
+		return
+	try:
+		calories = int((message.text or "0").strip())
+	except ValueError:
+		await message.answer("Пожалуйста, пришлите целое число калорий.")
+		return
+	await storage.set_daily_calories(user["user_id"], date_str, calories)
+	await message.answer("Принято! Данные об активности сохранены.")

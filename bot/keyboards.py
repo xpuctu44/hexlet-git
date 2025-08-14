@@ -1,0 +1,26 @@
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+def main_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="Профиль пользователя", callback_data="menu_profile"),
+			],
+			[
+				InlineKeyboardButton(text="Цели", callback_data="menu_goals"),
+			],
+			[
+				InlineKeyboardButton(text="Тренировка на сегодня", callback_data="menu_workout"),
+			],
+			[
+				InlineKeyboardButton(text="Питание на сегодня", callback_data="menu_meals"),
+			],
+		]
+	)
+
+
+def back_to_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[[InlineKeyboardButton(text="⬅️ В меню", callback_data="menu_root")]]
+	)
