@@ -41,6 +41,11 @@ class Storage:
 				);
 				"""
 			)
+			# Try to add OpenAI key column if not present
+			try:
+				await db.execute("ALTER TABLE users ADD COLUMN openai_api_key TEXT")
+			except Exception:
+				pass
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -73,7 +78,7 @@ class Storage:
 	async def get_user_by_tg(self, tg_user_id: int) -> Optional[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
-				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg FROM users WHERE tg_user_id=?",
+				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg, openai_api_key FROM users WHERE tg_user_id=?",
 				(tg_user_id,),
 			)
 			row = await cursor.fetchone()
@@ -87,6 +92,7 @@ class Storage:
 				"height_cm": row[4],
 				"weight_kg": row[5],
 				"desired_weight_kg": row[6],
+				"openai_api_key": row[7],
 			}
 
 	async def update_profile(self, user_id: int, height_cm: int, weight_kg: float) -> None:
@@ -106,6 +112,24 @@ class Storage:
 				(desired_weight_kg, now, user_id),
 			)
 			await db.commit()
+
+	async def update_openai_key(self, user_id: int, api_key: Optional[str]) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE users SET openai_api_key=?, updated_at=? WHERE user_id=?",
+				(api_key, now, user_id),
+			)
+			await db.commit()
+
+	async def get_openai_key(self, user_id: int) -> Optional[str]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"SELECT openai_api_key FROM users WHERE user_id=?",
+				(user_id,),
+			)
+			row = await cursor.fetchone()
+			return None if not row else row[0]
 
 	async def list_users(self) -> List[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:

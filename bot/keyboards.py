@@ -11,6 +11,9 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 				InlineKeyboardButton(text="Цели", callback_data="menu_goals"),
 			],
 			[
+				InlineKeyboardButton(text="Подключить ChatGPT", callback_data="menu_connect_openai"),
+			],
+			[
 				InlineKeyboardButton(text="Тренировка на сегодня", callback_data="menu_workout"),
 			],
 			[
