@@ -46,20 +46,24 @@ def generate_workout_prompt(user: Dict[str, Any]) -> str:
 	)
 
 
-def generate_meals_prompt(user: Dict[str, Any], calories_burned: Optional[int]) -> str:
+def generate_meals_prompt(user: Dict[str, Any], calories_burned: Optional[int], complexity: str) -> str:
 	profile = _profile_text(user)
 	current_date = date.today().strftime("%Y-%m-%d")
 	burned_text = (
 		f"Сегодня сожжено по активности: ~{calories_burned} ккал."
 		if calories_burned is not None else "Нет данных об израсходованных калориях."
 	)
+	complexity_text = "Простой" if complexity == "simple" else "Изысканный"
 	return (
 		"Ты — нутрициолог. Составь ПЛАН ПИТАНИЯ на сегодня для бодибилдинга на русском.\n"
 		f"Дата: {current_date}. Профиль: {profile}. {burned_text}\n"
+		f"Уровень сложности блюд: {complexity_text}.\n"
 		"Требования:"
 		"\n- Укажи целевую суточную калорийность, Б/Ж/У;"
 		"\n- Разбей на 4–6 приемов пищи с временем;"
 		"\n- Дай заменяемые варианты блюд и простой список покупок;"
+		"\n- Для 'Простой': блюда из базовых продуктов, быстрые способы (10–20 мин);"
+		"\n- Для 'Изысканный': более интересные сочетания, допускается сложнее и дольше;"
 		"\n- Форматируй компактно с заголовками и списками."
 	)
 
@@ -83,8 +87,8 @@ def make_workout_text(user: Dict[str, Any], api_key: Optional[str]) -> str:
 	], api_key=api_key)
 
 
-def make_meals_text(user: Dict[str, Any], calories_burned: Optional[int], api_key: Optional[str]) -> str:
-	prompt = generate_meals_prompt(user, calories_burned)
+def make_meals_text(user: Dict[str, Any], calories_burned: Optional[int], api_key: Optional[str], complexity: str) -> str:
+	prompt = generate_meals_prompt(user, calories_burned, complexity)
 	return generate_text([
 		{"role": "system", "content": "Ты помогаешь составлять конкретные планы без лишней воды."},
 		{"role": "user", "content": prompt},
