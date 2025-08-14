@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
@@ -22,7 +23,7 @@ async def main() -> None:
 
 	logging.basicConfig(level=logging.INFO)
 
-	bot = Bot(token=config.telegram_token, parse_mode="HTML")
+	bot = Bot(token=config.telegram_token, default=DefaultBotProperties(parse_mode="HTML"))
 
 	fsm_storage = MemoryStorage()
 	dispatcher = Dispatcher(storage=fsm_storage)
