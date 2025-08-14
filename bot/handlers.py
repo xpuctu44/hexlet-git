@@ -127,10 +127,19 @@ async def process_goal(message: Message, state: FSMContext, storage: Storage) ->
 @router.callback_query(F.data == "menu_connect_openai")  # обработчик кнопки Подключить ChatGPT
 async def cb_connect_openai(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
 	await state.set_state(ConnectOpenAI.api_key)  # переходим к состоянию ввода ключа
+	# Отправляем инструкцию с кликабельной ссылкой на страницу выдачи OpenAI API ключей
 	await callback.message.edit_text(
-		"Отправьте ваш OpenAI API ключ (формата sk-...).\n"
-		"Чтобы удалить ключ и использовать общий из .env — отправьте слово УДАЛИТЬ.",
-		reply_markup=back_to_menu_kb(),
+		(
+			"Подключение к ChatGPT (OpenAI):\n"  # заголовок инструкции
+			"1) Откройте страницу API Keys: "
+			"<a href='https://platform.openai.com/settings/keys'>platform.openai.com/settings/keys</a>\n"  # ссылка
+			"2) Нажмите Create new secret key и скопируйте ключ (начинается с sk-).\n"  # шаг создания ключа
+			"3) Отправьте ваш ключ сюда одним сообщением.\n"  # как передать ключ
+			"4) Чтобы удалить ключ и использовать общий из .env — отправьте слово УДАЛИТЬ.\n"  # как удалить ключ
+			"Важно: храните ключ в секрете и не публикуйте его."  # предупреждение о безопасности
+		),
+		reply_markup=back_to_menu_kb(),  # кнопка «В меню»
+		disable_web_page_preview=True,  # скрываем превью ссылки
 	)
 	await callback.answer()
 
