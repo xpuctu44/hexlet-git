@@ -88,3 +88,9 @@ Traceback (most recent call last):
     raise RuntimeError("OpenAI API ключ не задан. Подключите свой ключ в меню или задайте OPENAI_API_KEY в .env")
 RuntimeError: OpenAI API ключ не задан. Подключите свой ключ в меню или задайте OPENAI_API_KEY в .env
 INFO:aiogram.event:Update id=930594385 is handled. Duration 141 ms by bot id=8093306824
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @puzikarformabot id=8093306824 - 'PuzikArbuzik Форма'
+INFO:aiogram.dispatcher:Polling stopped
+nohup: ignoring input
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @puzikarformabot id=8093306824 - 'PuzikArbuzik Форма'
