@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
@@ -40,4 +40,19 @@ def meals_complexity_kb() -> InlineKeyboardMarkup:
 def back_to_menu_kb() -> InlineKeyboardMarkup:
 	return InlineKeyboardMarkup(
 		inline_keyboard=[[InlineKeyboardButton(text="⬅️ В меню", callback_data="menu_root")]]
+	)
+
+
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+	return ReplyKeyboardMarkup(
+		keyboard=[
+			[
+				KeyboardButton(text="Принять машину в ремонт"),
+			],
+			[
+				KeyboardButton(text="Гараж"),
+			],
+		],
+		resize_keyboard=True,
+		input_field_placeholder="Выберите действие",
 	)

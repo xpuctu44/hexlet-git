@@ -2,13 +2,13 @@ from datetime import date
 from typing import Optional
 
 from aiogram import Router, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest  # для отлова ошибок правки сообщения
 
-from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb  # добавили клавиатуру выбора сложности
+from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb, main_menu_keyboard  # добавили клавиатуру выбора сложности
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 
@@ -38,8 +38,8 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 	)
 	await state.clear()
 	await message.answer(
-		"Привет! Я помогу с планом тренировок и питания. Выберите раздел меню:",
-		reply_markup=main_menu_kb(),
+		"Здравствуйте! Выберите действие:",
+		reply_markup=main_menu_keyboard(),
 	)
 
 
@@ -246,3 +246,15 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 		return
 	await storage.set_daily_sleep_hours(user["user_id"], date_str, hours)
 	await message.answer("Спасибо! Часы сна сохранены.")
+
+
+@router.message(lambda m: (m.text or "").strip() == "Принять машину в ремонт")
+async def handle_accept_car(message: Message) -> None:
+	await message.answer(
+		"Принятие машины в ремонт: опишите проблему или пришлите фото."
+	)
+
+
+@router.message(lambda m: (m.text or "").strip() == "Гараж")
+async def handle_garage(message: Message) -> None:
+	await message.answer("Гараж: здесь будут ваши машины и статусы ремонтов.")
