@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest  # для отлова ошибок правки сообщения
 
-from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb  # добавили клавиатуру выбора сложности
+from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb, main_menu_keyboard  # добавили клавиатуру выбора сложности
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 
@@ -38,8 +38,8 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 	)
 	await state.clear()
 	await message.answer(
-		"Привет! Я помогу с планом тренировок и питания. Выберите раздел меню:",
-		reply_markup=main_menu_kb(),
+		"Здравствуйте! Выберите действие:",
+		reply_markup=main_menu_keyboard(),
 	)
 
 
