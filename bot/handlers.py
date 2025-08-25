@@ -2,7 +2,7 @@ from datetime import date
 from typing import Optional
 
 from aiogram import Router, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -246,3 +246,15 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 		return
 	await storage.set_daily_sleep_hours(user["user_id"], date_str, hours)
 	await message.answer("Спасибо! Часы сна сохранены.")
+
+
+@router.message(lambda m: (m.text or "").strip() == "Принять машину в ремонт")
+async def handle_accept_car(message: Message) -> None:
+	await message.answer(
+		"Принятие машины в ремонт: опишите проблему или пришлите фото."
+	)
+
+
+@router.message(lambda m: (m.text or "").strip() == "Гараж")
+async def handle_garage(message: Message) -> None:
+	await message.answer("Гараж: здесь будут ваши машины и статусы ремонтов.")

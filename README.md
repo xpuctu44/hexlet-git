@@ -1,53 +1,28 @@
-# Простой Telegram-бот плана тренировок и питания (aiogram 3)
+# Telegram Bot: Garage Service
 
-Функции:
-- Главное меню: профиль, цели, тренировка на сегодня, питание на сегодня
-- Интеграция с OpenAI (ChatGPT API) для генерации планов
-- Каждый вечер бот спрашивает, сколько калорий вы сожгли за день
-- Хранение профиля и активности в SQLite
+A minimal Telegram bot (aiogram v3) with two buttons: "Принять машину в ремонт" and "Гараж".
 
-## Установка
+## Setup
 
-1) Установите системный пакет для виртуального окружения (если нужно):
+1. Create virtual environment and install dependencies:
+
 ```bash
-sudo apt update && sudo apt install -y python3-venv
-```
-
-2) Создайте виртуальное окружение и установите зависимости:
-```bash
-cd /workspace
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+./.venv/bin/pip install --upgrade pip
+./.venv/bin/pip install -r requirements.txt
 ```
 
-## Настройка
+2. Configure environment:
 
-1) Получите токен у `@BotFather`
-2) Получите API ключ OpenAI из кабинета API
-3) Скопируйте и заполните `.env`:
 ```bash
 cp .env.example .env
-# отредактируйте .env
+# Edit .env and set BOT_TOKEN
 ```
 
-## Запуск
+## Run
+
 ```bash
-source .venv/bin/activate
-python -m bot.main
+./.venv/bin/python -m bot.main
 ```
 
-- Бот запускается в режиме polling
-- В 21:00 по времени сервера спросит калории за день (меняется переменной `NOTIFY_HOUR`)
-
-## Структура меню
-- Профиль пользователя: ввод роста и веса
-- Цели: ввод целевого веса
-- Тренировка на сегодня: генерируется план силовой тренировки
-- Питание на сегодня: генерируется рацион на день с учетом калорий
-
-## Примечания
-- Для корректной работы генерации нужен `OPENAI_API_KEY`
-- Для состояний используется FSM `MemoryStorage`
-- БД SQLite по пути, указанному в `DATABASE_PATH`
+If running on Linux, `uvloop` will be used automatically if installed.
