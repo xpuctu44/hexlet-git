@@ -439,7 +439,7 @@ class Storage:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT v.vehicle_id, v.client_id, v.status,
+				SELECT v.vehicle_id, v.client_id, v.status, v.created_at,
 				       c.full_name, c.balance
 				FROM vehicles v JOIN clients c ON c.client_id = v.client_id
 				WHERE v.vehicle_id=?
@@ -453,15 +453,16 @@ class Storage:
 				"vehicle_id": row[0],
 				"client_id": row[1],
 				"status": row[2],
-				"full_name": row[3],
-				"balance": row[4],
+				"created_at": row[3],
+				"full_name": row[4],
+				"balance": row[5],
 			}
 
 	async def list_garage(self) -> List[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT v.vehicle_id, v.client_id, v.status,
+				SELECT v.vehicle_id, v.client_id, v.status, v.created_at,
 				       c.full_name, c.car_make_model, c.plate, c.vin
 				FROM vehicles v
 				JOIN clients c ON c.client_id = v.client_id
@@ -475,10 +476,11 @@ class Storage:
 					"vehicle_id": r[0],
 					"client_id": r[1],
 					"status": r[2],
-					"full_name": r[3],
-					"car_make_model": r[4],
-					"plate": r[5],
-					"vin": r[6],
+					"created_at": r[3],
+					"full_name": r[4],
+					"car_make_model": r[5],
+					"plate": r[6],
+					"vin": r[7],
 				}
 				for r in rows
 			]

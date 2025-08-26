@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from aiogram import Router, F
@@ -14,6 +14,20 @@ from .openai_client import make_meals_text, make_workout_text
 
 
 router = Router()
+
+
+def _format_duration_since(created_at_iso: str) -> str:
+	try:
+		started = datetime.fromisoformat(created_at_iso)
+	except Exception:
+		return "?"
+	now = datetime.now(started.tzinfo or timezone.utc)
+	delta = now - started
+	days = delta.days
+	hours = delta.seconds // 3600
+	if days > 0:
+		return f"{days} дн {hours} ч"
+	return f"{hours} ч"
 
 
 class ProfileForm(StatesGroup):
@@ -232,9 +246,10 @@ async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
 		return
 	buttons = []
 	for v in vehicles:
+		duration = _format_duration_since(v.get("created_at", ""))
 		buttons.append([
 			InlineKeyboardButton(
-				text=f"#{v['vehicle_id']} — {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'})",
+				text=f"#{v['vehicle_id']} — {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'}) · {duration}",
 				callback_data=f"vehicle:{v['vehicle_id']}"
 			)
 		])
@@ -252,6 +267,7 @@ async def cb_vehicle_menu(callback: CallbackQuery, storage: Storage) -> None:
 	if not vc:
 		await callback.answer()
 		return
+	duration = _format_duration_since(vc.get("created_at", ""))
 	kb = InlineKeyboardMarkup(
 		inline_keyboard=[
 			[InlineKeyboardButton(text="Добавить запчасть + работу", callback_data=f"addwork:{vehicle_id}")],
@@ -260,7 +276,7 @@ async def cb_vehicle_menu(callback: CallbackQuery, storage: Storage) -> None:
 		]
 	)
 	await callback.message.edit_text(
-		f"Авто #{vc['vehicle_id']} — {vc['full_name']}\nБаланс: {vc['balance']:.2f}",
+		f"Авто #{vc['vehicle_id']} — {vc['full_name']}\nСтоит в гараже: {duration}\nБаланс: {vc['balance']:.2f}",
 		reply_markup=kb,
 	)
 	await callback.answer()
