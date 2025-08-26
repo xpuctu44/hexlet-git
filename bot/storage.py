@@ -128,6 +128,18 @@ class Storage:
 				"""
 			)
 			await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number)")
+			# Payments
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS payments (
+					payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					client_id INTEGER NOT NULL,
+					amount REAL NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -586,3 +598,36 @@ class Storage:
 			)
 			await db.commit()
 		return order_number
+
+	async def add_payment(self, client_id: int, amount: float) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute(
+				"INSERT INTO payments(client_id, amount, created_at) VALUES(?,?,?)",
+				(client_id, amount, now),
+			)
+			await db.commit()
+			return cur.lastrowid
+
+	async def list_payments(self, client_id: int) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute(
+				"SELECT payment_id, amount, created_at FROM payments WHERE client_id=? ORDER BY payment_id DESC",
+				(client_id,),
+			)
+			rows = await cur.fetchall()
+			return [
+				{"payment_id": r[0], "amount": r[1], "created_at": r[2]}
+				for r in rows
+			]
+
+	async def delete_payment(self, payment_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT client_id, amount FROM payments WHERE payment_id=?", (payment_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			client_id, amount = row[0], row[1]
+			await db.execute("DELETE FROM payments WHERE payment_id=?", (payment_id,))
+			await db.commit()
+			return client_id, float(amount)

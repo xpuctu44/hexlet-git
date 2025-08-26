@@ -69,6 +69,11 @@ class AddWorkForm(StatesGroup):
 	job_price = State()
 
 
+class AddPaymentForm(StatesGroup):
+	client_id = State()
+	amount = State()
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> None:
 	await storage.upsert_user(
@@ -589,17 +594,130 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 @router.callback_query(F.data == "menu_clients")
 async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
 	clients = await storage.list_clients()
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not clients:
-		text = "Клиентов пока нет. Принимите авто, чтобы создать клиента."
-		await callback.message.edit_text(text, reply_markup=nav_kb("menu_root"))
+		await callback.message.edit_text("Клиентов пока нет. Принимите авто, чтобы создать клиента.", reply_markup=nav_kb("menu_root"))
 		await callback.answer()
 		return
-	lines = [
-		f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'} — Долг: {c['balance'] or 0:.2f}"
-		for c in clients
-	]
-	text = "Клиенты:\n\n" + "\n".join(lines)
-	await callback.message.edit_text(text, reply_markup=nav_kb("menu_root"))
+	rows = []
+	for c in clients:
+		rows.append([
+			InlineKeyboardButton(
+				text=f"#{c['client_id']} {c['full_name']} — долг: {c['balance'] or 0:.2f}",
+				callback_data=f"client:{c['client_id']}"
+			)
+		])
+	rows.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Клиенты:", reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("client:"))
+async def cb_client_detail(callback: CallbackQuery, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	client = await storage.get_client(client_id)
+	if not client:
+		await callback.answer("Клиент не найден")
+		return
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	text = (
+		f"Клиент #{client['client_id']}: {client['full_name']}\n"
+		f"Телефон: {client.get('phone') or ''}\n"
+		f"Долг: {client.get('balance') or 0:.2f}"
+	)
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="Добавить оплату", callback_data=f"payadd:{client_id}")],
+			[InlineKeyboardButton(text="Удалить оплату", callback_data=f"paydel:{client_id}")],
+			[InlineKeyboardButton(text="История платежей", callback_data=f"payhist:{client_id}")],
+			[InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="menu_clients"), InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+	await callback.message.edit_text(text, reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("payadd:"))
+async def cb_pay_add(callback: CallbackQuery, state: FSMContext) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	await state.set_state(AddPaymentForm.amount)
+	await state.update_data(client_id=client_id)
+	await callback.message.edit_text("Введите сумму оплаты (например, 1500.00)", reply_markup=nav_kb(f"client:{client_id}"))
+	await callback.answer()
+
+
+@router.message(AddPaymentForm.amount)
+async def msg_pay_amount(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").replace(",", ".").strip()
+	try:
+		amount = float(text)
+		if amount <= 0:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите положительное число, например 1500.00", reply_markup=nav_kb("menu_clients"))
+		return
+	data = await state.get_data()
+	client_id = int(data["client_id"]) if "client_id" in data else 0
+	if client_id:
+		await storage.add_payment(client_id, amount)
+		await storage.adjust_client_balance(client_id, -amount)
+		await state.clear()
+		await message.answer("Оплата добавлена и баланс обновлён.", reply_markup=nav_kb(f"client:{client_id}"))
+	else:
+		await state.clear()
+		await message.answer("Клиент не найден.", reply_markup=nav_kb("menu_clients"))
+
+
+@router.callback_query(F.data.startswith("payhist:"))
+async def cb_pay_history(callback: CallbackQuery, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	payments = await storage.list_payments(client_id)
+	if not payments:
+		await callback.message.edit_text("Платежей пока нет.", reply_markup=nav_kb(f"client:{client_id}"))
+		await callback.answer()
+		return
+	lines = [f"{p['created_at'][:19].replace('T',' ')} — {p['amount']:.2f} ₽" for p in payments]
+	text = "История платежей:\n\n" + "\n".join(lines)
+	await callback.message.edit_text(text, reply_markup=nav_kb(f"client:{client_id}"))
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("paydel:"))
+async def cb_pay_delete_menu(callback: CallbackQuery, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	payments = await storage.list_payments(client_id)
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	rows = []
+	for p in payments:
+		rows.append([
+			InlineKeyboardButton(
+				text=f"{p['created_at'][:19].replace('T',' ')} — {p['amount']:.2f} ₽",
+				callback_data=f"paydelid:{p['payment_id']}:{client_id}"
+			)
+		])
+	if not rows:
+		await callback.message.edit_text("Платежей для удаления нет.", reply_markup=nav_kb(f"client:{client_id}"))
+		await callback.answer()
+		return
+	rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"client:{client_id}")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Выберите оплату для удаления:", reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("paydelid:"))
+async def cb_pay_delete(callback: CallbackQuery, storage: Storage) -> None:
+	parts = callback.data.split(":", 2)
+	payment_id = int(parts[1])
+	client_id = int(parts[2])
+	info = await storage.delete_payment(payment_id)
+	if info is None:
+		await callback.answer("Платёж не найден")
+		return
+	client_id_conf, amount = info
+	await storage.adjust_client_balance(client_id_conf, amount)
+	await callback.message.edit_text("Платёж удалён и баланс обновлён.", reply_markup=nav_kb(f"client:{client_id}"))
 	await callback.answer()
 
 
