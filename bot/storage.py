@@ -56,6 +56,37 @@ class Storage:
 				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")  # 0/1
 			except Exception:
 				pass  # колонка уже существует — игнорируем
+			# New: clients table
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS clients (
+					client_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					full_name TEXT NOT NULL,
+					phone TEXT,
+					car_make_model TEXT,
+					year INTEGER,
+					vin TEXT,
+					plate TEXT,
+					sts TEXT,
+					reason TEXT,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+				"""
+			)
+			# New: vehicles table for garage
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS vehicles (
+					vehicle_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					client_id INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL,
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -234,3 +265,173 @@ class Storage:
 			)
 			row = await cursor.fetchone()
 			return None if not row else row[0]
+
+	# ===== Clients and Garage =====
+	async def create_client(self, full_name: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO clients(full_name, created_at, updated_at)
+				VALUES(?,?,?)
+				""",
+				(full_name, now, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def update_client_contact(self, client_id: int, phone: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET phone=?, updated_at=? WHERE client_id=?",
+				(phone, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_car(self, client_id: int, car_make_model: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET car_make_model=?, updated_at=? WHERE client_id=?",
+				(car_make_model, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_year(self, client_id: int, year: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET year=?, updated_at=? WHERE client_id=?",
+				(year, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_vin(self, client_id: int, vin: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET vin=?, updated_at=? WHERE client_id=?",
+				(vin, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_plate(self, client_id: int, plate: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET plate=?, updated_at=? WHERE client_id=?",
+				(plate, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_sts(self, client_id: int, sts: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET sts=?, updated_at=? WHERE client_id=?",
+				(sts, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_reason(self, client_id: int, reason: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET reason=?, updated_at=? WHERE client_id=?",
+				(reason, now, client_id),
+			)
+			await db.commit()
+
+	async def get_client(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT client_id, full_name, phone, car_make_model, year, vin, plate, sts, reason
+				FROM clients WHERE client_id=?
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"client_id": row[0],
+				"full_name": row[1],
+				"phone": row[2],
+				"car_make_model": row[3],
+				"year": row[4],
+				"vin": row[5],
+				"plate": row[6],
+				"sts": row[7],
+				"reason": row[8],
+			}
+
+	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT client_id, full_name, phone, car_make_model, plate
+				FROM clients ORDER BY client_id DESC LIMIT ?
+				""",
+				(limit,),
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"client_id": r[0],
+					"full_name": r[1],
+					"phone": r[2],
+					"car_make_model": r[3],
+					"plate": r[4],
+				}
+				for r in rows
+			]
+
+	async def create_vehicle_from_client(self, client_id: int) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO vehicles(client_id, status, created_at, updated_at)
+				VALUES(?, 'in_garage', ?, ?)
+				""",
+				(client_id, now, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def list_garage(self) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT v.vehicle_id, v.client_id, v.status,
+				       c.full_name, c.car_make_model, c.plate, c.vin
+				FROM vehicles v
+				JOIN clients c ON c.client_id = v.client_id
+				WHERE v.status='in_garage'
+				ORDER BY v.vehicle_id DESC
+				"""
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"vehicle_id": r[0],
+					"client_id": r[1],
+					"status": r[2],
+					"full_name": r[3],
+					"car_make_model": r[4],
+					"plate": r[5],
+					"vin": r[6],
+				}
+				for r in rows
+			]
+
+	async def set_vehicle_status(self, vehicle_id: int, status: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE vehicles SET status=?, updated_at=? WHERE vehicle_id=?",
+				(status, now, vehicle_id),
+			)
+			await db.commit()

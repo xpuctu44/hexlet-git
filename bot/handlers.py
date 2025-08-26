@@ -29,6 +29,18 @@ class ConnectOpenAI(StatesGroup):  # состояние для ввода пер
 	api_key = State()
 
 
+class IntakeCarForm(StatesGroup):
+	full_name = State()
+	phone = State()
+	car_make_model = State()
+	year = State()
+	vin = State()
+	plate = State()
+	sts = State()
+	reason = State()
+	confirm = State()
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> None:
 	user_id = await storage.upsert_user(
@@ -58,21 +70,164 @@ async def cb_menu_root(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "menu_accept_car")
-async def cb_menu_accept_car(callback: CallbackQuery) -> None:
-	text = (
-		"Принять машину в ремонт\n\n"
-		"Скоро здесь появится форма приёмки: клиент, авто, VIN, работы."
+async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext) -> None:
+	await state.set_state(IntakeCarForm.full_name)
+	await callback.message.edit_text(
+		"Приём авто в ремонт.\n\n1) Введите ФИО клиента:",
+		reply_markup=back_to_menu_kb(),
 	)
-	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.answer()
+
+
+@router.message(IntakeCarForm.full_name)
+async def intake_full_name(message: Message, state: FSMContext, storage: Storage) -> None:
+	full_name = (message.text or "").strip()
+	if not full_name:
+		await message.answer("Пожалуйста, укажите ФИО клиента.")
+		return
+	client_id = await storage.create_client(full_name)
+	await state.update_data(client_id=client_id, full_name=full_name)
+	await state.set_state(IntakeCarForm.phone)
+	await message.answer("2) Контактный номер для связи:")
+
+
+@router.message(IntakeCarForm.phone)
+async def intake_phone(message: Message, state: FSMContext, storage: Storage) -> None:
+	phone = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_contact(client_id, phone)
+	await state.update_data(phone=phone)
+	await state.set_state(IntakeCarForm.car_make_model)
+	await message.answer("3) Марка и модель авто:")
+
+
+@router.message(IntakeCarForm.car_make_model)
+async def intake_car_make_model(message: Message, state: FSMContext, storage: Storage) -> None:
+	car = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_car(client_id, car)
+	await state.update_data(car_make_model=car)
+	await state.set_state(IntakeCarForm.year)
+	await message.answer("4) Год выпуска:")
+
+
+@router.message(IntakeCarForm.year)
+async def intake_year(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").strip()
+	try:
+		year = int(text)
+		if year < 1950 or year > 2100:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите год числом, например 2015.")
+		return
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_year(client_id, year)
+	await state.update_data(year=year)
+	await state.set_state(IntakeCarForm.vin)
+	await message.answer("5) VIN:")
+
+
+@router.message(IntakeCarForm.vin)
+async def intake_vin(message: Message, state: FSMContext, storage: Storage) -> None:
+	vin = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_vin(client_id, vin)
+	await state.update_data(vin=vin)
+	await state.set_state(IntakeCarForm.plate)
+	await message.answer("6) Гос номер авто:")
+
+
+@router.message(IntakeCarForm.plate)
+async def intake_plate(message: Message, state: FSMContext, storage: Storage) -> None:
+	plate = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_plate(client_id, plate)
+	await state.update_data(plate=plate)
+	await state.set_state(IntakeCarForm.sts)
+	await message.answer("7) СТС:")
+
+
+@router.message(IntakeCarForm.sts)
+async def intake_sts(message: Message, state: FSMContext, storage: Storage) -> None:
+	sts = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_sts(client_id, sts)
+	await state.update_data(sts=sts)
+	await state.set_state(IntakeCarForm.reason)
+	await message.answer("8) Причина обращения:")
+
+
+@router.message(IntakeCarForm.reason)
+async def intake_reason(message: Message, state: FSMContext, storage: Storage) -> None:
+	reason = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_reason(client_id, reason)
+	await state.update_data(reason=reason)
+	# Summary
+	data = await state.get_data()
+	summary = (
+		"Карточка клиента и авто:\n\n"
+		f"ФИО: {data.get('full_name','')}\n"
+		f"Телефон: {data.get('phone','')}\n"
+		f"Авто: {data.get('car_make_model','')}\n"
+		f"Год: {data.get('year','')}\n"
+		f"VIN: {data.get('vin','')}\n"
+		f"Гос номер: {data.get('plate','')}\n"
+		f"СТС: {data.get('sts','')}\n"
+		f"Причина: {data.get('reason','')}\n\n"
+		"Нажмите кнопку ниже, чтобы поставить авто в ГАРАЖ."
+	)
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="Поставить авто в ГАРАЖ", callback_data="put_in_garage")],
+			[InlineKeyboardButton(text="⬅️ В меню", callback_data="menu_root")],
+		]
+	)
+	await state.set_state(IntakeCarForm.confirm)
+	await message.answer(summary, reply_markup=kb)
+
+
+@router.callback_query(F.data == "put_in_garage")
+async def cb_put_in_garage(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		vehicle_id = await storage.create_vehicle_from_client(client_id)
+		await state.clear()
+		await callback.message.edit_text(
+			"Авто добавлено в ГАРАЖ. Открыть список гаража?",
+			reply_markup=back_to_menu_kb(),
+		)
 	await callback.answer()
 
 
 @router.callback_query(F.data == "menu_garage")
-async def cb_menu_garage(callback: CallbackQuery) -> None:
-	text = (
-		"Гараж\n\n"
-		"Здесь будет список автомобилей в работе и история завершённых работ."
-	)
+async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
+	vehicles = await storage.list_garage()
+	if not vehicles:
+		text = "Гараж пуст."
+	else:
+		lines = [
+			f"#{v['vehicle_id']}: {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'})"
+			for v in vehicles
+		]
+		text = "Гараж:\n\n" + "\n".join(lines)
 	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
 	await callback.answer()
 
@@ -257,13 +412,15 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 
 @router.callback_query(F.data == "menu_clients")
 async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
-	# Простая заглушка: покажем количество пользователей и подсказку
-	users = await storage.list_users()
-	total = len(users)
-	text = (
-		"Раздел: Клиенты\n\n"
-		f"Всего клиентов: {total}\n\n"
-		"Скоро здесь появится список клиентов и поиск."
-	)
+	# Покажем последних клиентов
+	clients = await storage.list_clients()
+	if not clients:
+		text = "Клиентов пока нет. Принимите авто, чтобы создать клиента."
+	else:
+		lines = [
+			f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'}"
+			for c in clients
+		]
+		text = "Клиенты:\n\n" + "\n".join(lines)
 	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
 	await callback.answer()
