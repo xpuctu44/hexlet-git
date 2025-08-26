@@ -57,6 +57,26 @@ async def cb_menu_root(callback: CallbackQuery) -> None:
 		raise
 
 
+@router.callback_query(F.data == "menu_accept_car")
+async def cb_menu_accept_car(callback: CallbackQuery) -> None:
+	text = (
+		"Принять машину в ремонт\n\n"
+		"Скоро здесь появится форма приёмки: клиент, авто, VIN, работы."
+	)
+	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.answer()
+
+
+@router.callback_query(F.data == "menu_garage")
+async def cb_menu_garage(callback: CallbackQuery) -> None:
+	text = (
+		"Гараж\n\n"
+		"Здесь будет список автомобилей в работе и история завершённых работ."
+	)
+	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.answer()
+
+
 @router.callback_query(F.data == "menu_profile")
 async def cb_menu_profile(callback: CallbackQuery, state: FSMContext) -> None:
 	await state.set_state(ProfileForm.height_cm)
@@ -167,19 +187,6 @@ async def process_openai_key(message: Message, state: FSMContext, storage: Stora
 	await storage.update_openai_key(user["user_id"], text)  # сохраняем персональный ключ
 	await state.clear()
 	await message.answer("Ключ сохранён. Можно генерировать планы.", reply_markup=main_menu_kb())
-
-
-@router.callback_query(F.data == "menu_workout")
-async def cb_menu_workout(callback: CallbackQuery, storage: Storage) -> None:
-	user = await storage.get_user_by_tg(callback.from_user.id)
-	if not user:
-		await callback.message.edit_text("Пользователь не найден. Наберите /start")
-		await callback.answer()
-		return
-	await callback.message.edit_text("Готовлю тренировку на сегодня…")
-	text = make_workout_text(user, user.get("openai_api_key"))  # используем персональный ключ, если есть
-	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
-	await callback.answer()
 
 
 @router.callback_query(F.data == "menu_meals")

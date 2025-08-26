@@ -10,6 +10,12 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 			[
 				InlineKeyboardButton(text="Клиенты", callback_data="menu_clients"),
 			],
+			[
+				InlineKeyboardButton(text="Принять машину в ремонт", callback_data="menu_accept_car"),
+			],
+			[
+				InlineKeyboardButton(text="Гараж", callback_data="menu_garage"),
+			],
 		]
 	)
 
