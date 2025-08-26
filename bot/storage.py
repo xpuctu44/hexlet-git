@@ -1,6 +1,6 @@
 import aiosqlite
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 
 class Storage:
@@ -41,22 +41,19 @@ class Storage:
 				);
 				"""
 			)
-			# Try to add OpenAI key column if not present
 			try:
 				await db.execute("ALTER TABLE users ADD COLUMN openai_api_key TEXT")
 			except Exception:
 				pass
-			# Add sleep_hours column if missing (REAL to allow fractional hours)  # добавляем колонку часов сна, если её нет
 			try:
-				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL")  # может хранить дробные значения
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL")
 			except Exception:
-				pass  # колонка уже существует — игнорируем
-			# Add sleep_pending flag similar to calories pending  # флаг ожидания ввода часов сна на сегодня
+				pass
 			try:
-				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")  # 0/1
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")
 			except Exception:
-				pass  # колонка уже существует — игнорируем
-			# New: clients table
+				pass
+			# Clients table
 			await db.execute(
 				"""
 				CREATE TABLE IF NOT EXISTS clients (
@@ -69,12 +66,18 @@ class Storage:
 					plate TEXT,
 					sts TEXT,
 					reason TEXT,
+					balance REAL DEFAULT 0,
 					created_at TEXT NOT NULL,
 					updated_at TEXT NOT NULL
 				);
 				"""
 			)
-			# New: vehicles table for garage
+			# Ensure balance column exists (for migrations)
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN balance REAL DEFAULT 0")
+			except Exception:
+				pass
+			# Vehicles table for garage
 			await db.execute(
 				"""
 				CREATE TABLE IF NOT EXISTS vehicles (
@@ -84,6 +87,31 @@ class Storage:
 					created_at TEXT NOT NULL,
 					updated_at TEXT NOT NULL,
 					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
+			# Parts and jobs
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS parts (
+					part_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					vehicle_id INTEGER NOT NULL,
+					name TEXT NOT NULL,
+					price REAL NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
+				);
+				"""
+			)
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS jobs (
+					job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					vehicle_id INTEGER NOT NULL,
+					name TEXT NOT NULL,
+					price REAL NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
 				);
 				"""
 			)
@@ -223,7 +251,6 @@ class Storage:
 			return None if not row else row[0]
 
 	async def set_daily_sleep_pending(self, user_id: int, date_str: str) -> None:
-		# Помечаем, что для пользователя ожидается ввод часов сна за текущую дату
 		async with aiosqlite.connect(self.db_path) as db:
 			await db.execute(
 				"""
@@ -235,7 +262,6 @@ class Storage:
 			await db.commit()
 
 	async def set_daily_sleep_hours(self, user_id: int, date_str: str, hours: float) -> None:
-		# Сохраняем часы сна и снимаем флаг ожидания
 		async with aiosqlite.connect(self.db_path) as db:
 			await db.execute(
 				"""
@@ -247,7 +273,6 @@ class Storage:
 			await db.commit()
 
 	async def has_pending_sleep(self, user_id: int, date_str: str) -> bool:
-		# Проверяем, ожидается ли ввод часов сна на эту дату
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"SELECT sleep_pending FROM daily_activity WHERE user_id=? AND date=?",
@@ -257,7 +282,6 @@ class Storage:
 			return bool(row and row[0] == 1)
 
 	async def get_today_sleep_hours(self, user_id: int, date_str: str) -> Optional[float]:
-		# Получаем сохраненные часы сна за дату (если есть)
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"SELECT sleep_hours FROM daily_activity WHERE user_id=? AND date=?",
@@ -343,11 +367,19 @@ class Storage:
 			)
 			await db.commit()
 
+	async def adjust_client_balance(self, client_id: int, delta: float) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET balance = COALESCE(balance,0) + ? WHERE client_id=?",
+				(delta, client_id),
+			)
+			await db.commit()
+
 	async def get_client(self, client_id: int) -> Optional[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT client_id, full_name, phone, car_make_model, year, vin, plate, sts, reason
+				SELECT client_id, full_name, phone, car_make_model, year, vin, plate, sts, reason, balance
 				FROM clients WHERE client_id=?
 				""",
 				(client_id,),
@@ -365,13 +397,14 @@ class Storage:
 				"plate": row[6],
 				"sts": row[7],
 				"reason": row[8],
+				"balance": row[9],
 			}
 
 	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT client_id, full_name, phone, car_make_model, plate
+				SELECT client_id, full_name, phone, car_make_model, plate, balance
 				FROM clients ORDER BY client_id DESC LIMIT ?
 				""",
 				(limit,),
@@ -384,6 +417,7 @@ class Storage:
 					"phone": r[2],
 					"car_make_model": r[3],
 					"plate": r[4],
+					"balance": r[5],
 				}
 				for r in rows
 			]
@@ -400,6 +434,28 @@ class Storage:
 			)
 			await db.commit()
 			return cursor.lastrowid
+
+	async def get_vehicle_with_client(self, vehicle_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT v.vehicle_id, v.client_id, v.status,
+				       c.full_name, c.balance
+				FROM vehicles v JOIN clients c ON c.client_id = v.client_id
+				WHERE v.vehicle_id=?
+				""",
+				(vehicle_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"vehicle_id": row[0],
+				"client_id": row[1],
+				"status": row[2],
+				"full_name": row[3],
+				"balance": row[4],
+			}
 
 	async def list_garage(self) -> List[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
@@ -435,3 +491,66 @@ class Storage:
 				(status, now, vehicle_id),
 			)
 			await db.commit()
+
+	# ===== Parts and Jobs =====
+	async def add_part(self, vehicle_id: int, name: str, price: float) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO parts(vehicle_id, name, price, created_at)
+				VALUES(?,?,?,?)
+				""",
+				(vehicle_id, name, price, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def add_job(self, vehicle_id: int, name: str, price: float) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO jobs(vehicle_id, name, price, created_at)
+				VALUES(?,?,?,?)
+				""",
+				(vehicle_id, name, price, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def list_items_for_vehicle(self, vehicle_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			c1 = await db.execute("SELECT part_id, name, price FROM parts WHERE vehicle_id=? ORDER BY part_id DESC", (vehicle_id,))
+			parts = [
+				{"part_id": r[0], "name": r[1], "price": r[2]}
+				for r in await c1.fetchall()
+			]
+			c2 = await db.execute("SELECT job_id, name, price FROM jobs WHERE vehicle_id=? ORDER BY job_id DESC", (vehicle_id,))
+			jobs = [
+				{"job_id": r[0], "name": r[1], "price": r[2]}
+				for r in await c2.fetchall()
+			]
+			return parts, jobs
+
+	async def delete_part(self, part_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT vehicle_id, price FROM parts WHERE part_id=?", (part_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			vehicle_id, price = row[0], row[1]
+			await db.execute("DELETE FROM parts WHERE part_id=?", (part_id,))
+			await db.commit()
+			return vehicle_id, float(price)
+
+	async def delete_job(self, job_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT vehicle_id, price FROM jobs WHERE job_id=?", (job_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			vehicle_id, price = row[0], row[1]
+			await db.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+			await db.commit()
+			return vehicle_id, float(price)

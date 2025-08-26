@@ -6,9 +6,9 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramBadRequest  # для отлова ошибок правки сообщения
+from aiogram.exceptions import TelegramBadRequest
 
-from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb  # добавили клавиатуру выбора сложности
+from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 
@@ -25,7 +25,7 @@ class GoalForm(StatesGroup):
 	desired_weight_kg = State()
 
 
-class ConnectOpenAI(StatesGroup):  # состояние для ввода персонального OpenAI ключа
+class ConnectOpenAI(StatesGroup):
 	api_key = State()
 
 
@@ -41,9 +41,17 @@ class IntakeCarForm(StatesGroup):
 	confirm = State()
 
 
+class AddWorkForm(StatesGroup):
+	vehicle_id = State()
+	part_name = State()
+	part_price = State()
+	job_name = State()
+	job_price = State()
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> None:
-	user_id = await storage.upsert_user(
+	await storage.upsert_user(
 		tg_user_id=message.from_user.id,
 		chat_id=message.chat.id,
 		username=message.from_user.username,
@@ -205,46 +213,190 @@ async def cb_put_in_garage(callback: CallbackQuery, state: FSMContext, storage: 
 	data = await state.get_data()
 	client_id = data.get("client_id")
 	if client_id:
-		vehicle_id = await storage.create_vehicle_from_client(client_id)
+		await storage.create_vehicle_from_client(client_id)
 		await state.clear()
-		await callback.message.edit_text(
-			"Авто добавлено в ГАРАЖ.",
-		)
+		await callback.message.edit_text("Авто добавлено в ГАРАЖ.")
 	await callback.answer()
 
 
 @router.callback_query(F.data == "menu_garage")
 async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
 	vehicles = await storage.list_garage()
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not vehicles:
-		text = "Гараж пуст."
-	else:
-		lines = [
-			f"#{v['vehicle_id']}: {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'})"
-			for v in vehicles
+		await callback.message.edit_text("Гараж пуст.")
+		await callback.answer()
+		return
+	buttons = []
+	for v in vehicles:
+		buttons.append([
+			InlineKeyboardButton(
+				text=f"#{v['vehicle_id']} — {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'})",
+				callback_data=f"vehicle:{v['vehicle_id']}"
+			)
+		])
+	kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+	await callback.message.edit_text("Гараж: выберите авто", reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("vehicle:"))
+async def cb_vehicle_menu(callback: CallbackQuery, storage: Storage) -> None:
+	vehicle_id = int(callback.data.split(":", 1)[1])
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	if not vc:
+		await callback.answer()
+		return
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="Добавить запчасть + работу", callback_data=f"addwork:{vehicle_id}")],
+			[InlineKeyboardButton(text="Удалить запчасть/работу", callback_data=f"delmenu:{vehicle_id}")],
+			[InlineKeyboardButton(text="⬅️ Назад к гаражу", callback_data="menu_garage")],
 		]
-		text = "Гараж:\n\n" + "\n".join(lines)
-	await callback.message.edit_text(text)
+	)
+	await callback.message.edit_text(
+		f"Авто #{vc['vehicle_id']} — {vc['full_name']}\nБаланс: {vc['balance']:.2f}",
+		reply_markup=kb,
+	)
 	await callback.answer()
 
 
-@router.callback_query(F.data == "menu_root")
-async def _noop_back(callback: CallbackQuery) -> None:
-	# Ничего не показываем дополнительно — просто обновим меню
+@router.callback_query(F.data.startswith("addwork:"))
+async def cb_addwork_start(callback: CallbackQuery, state: FSMContext) -> None:
+	vehicle_id = int(callback.data.split(":", 1)[1])
+	await state.set_state(AddWorkForm.part_name)
+	await state.update_data(vehicle_id=vehicle_id)
+	await callback.message.edit_text("1) Название запчасти:")
+	await callback.answer()
+
+
+@router.message(AddWorkForm.part_name)
+async def addwork_part_name(message: Message, state: FSMContext) -> None:
+	name = (message.text or "").strip()
+	if not name:
+		await message.answer("Укажите название запчасти.")
+		return
+	await state.update_data(part_name=name)
+	await state.set_state(AddWorkForm.part_price)
+	await message.answer("2) Цена запчасти:")
+
+
+@router.message(AddWorkForm.part_price)
+async def addwork_part_price(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").replace(",", ".").strip()
 	try:
-		await callback.message.edit_text("Главное меню:", reply_markup=main_menu_kb())
-	except TelegramBadRequest:
-		pass
+		price = float(text)
+		if price < 0:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите цену числом, например 3500.")
+		return
+	data = await state.get_data()
+	vehicle_id = int(data["vehicle_id"])
+	await storage.add_part(vehicle_id, data.get("part_name", ""), price)
+	# Debt increase
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	if vc:
+		await storage.adjust_client_balance(vc["client_id"], price)
+	await state.set_state(AddWorkForm.job_name)
+	await message.answer("3) Название работы:")
+
+
+@router.message(AddWorkForm.job_name)
+async def addwork_job_name(message: Message, state: FSMContext) -> None:
+	name = (message.text or "").strip()
+	if not name:
+		await message.answer("Укажите название работы.")
+		return
+	await state.update_data(job_name=name)
+	await state.set_state(AddWorkForm.job_price)
+	await message.answer("4) Стоимость работы:")
+
+
+@router.message(AddWorkForm.job_price)
+async def addwork_job_price(message: Message, state: FSMContext, storage: Storage) -> None:
+	text = (message.text or "").replace(",", ".").strip()
+	try:
+		price = float(text)
+		if price < 0:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите стоимость числом, например 2500.")
+		return
+	data = await state.get_data()
+	vehicle_id = int(data["vehicle_id"])
+	await storage.add_job(vehicle_id, data.get("job_name", ""), price)
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	if vc:
+		await storage.adjust_client_balance(vc["client_id"], price)
+	# Show post-menu
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="Вернуться в гараж", callback_data="menu_garage")],
+			[InlineKeyboardButton(text="Добавить ещё одну работу", callback_data=f"addwork:{vehicle_id}")],
+			[InlineKeyboardButton(text="Удалить запчасть/работу", callback_data=f"delmenu:{vehicle_id}")],
+		]
+	)
+	await state.clear()
+	await message.answer("Добавлено. Что дальше?", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("delmenu:"))
+async def cb_delete_menu(callback: CallbackQuery, storage: Storage) -> None:
+	vehicle_id = int(callback.data.split(":", 1)[1])
+	parts, jobs = await storage.list_items_for_vehicle(vehicle_id)
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	rows = []
+	for p in parts:
+		rows.append([InlineKeyboardButton(text=f"[Запчасть] {p['name']} — {p['price']:.2f}", callback_data=f"delpart:{p['part_id']}")])
+	for j in jobs:
+		rows.append([InlineKeyboardButton(text=f"[Работа] {j['name']} — {j['price']:.2f}", callback_data=f"deljob:{j['job_id']}")])
+	if not rows:
+		await callback.message.edit_text("Нет запчастей или работ для удаления.")
+		await callback.answer()
+		return
+	rows.append([InlineKeyboardButton(text="⬅️ Назад к авто", callback_data=f"vehicle:{vehicle_id}")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Удалить элемент:", reply_markup=kb)
 	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("delpart:"))
+async def cb_delete_part(callback: CallbackQuery, storage: Storage) -> None:
+	part_id = int(callback.data.split(":", 1)[1])
+	info = await storage.delete_part(part_id)
+	if info is None:
+		await callback.answer("Элемент не найден")
+		return
+	vehicle_id, price = info
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	if vc:
+		await storage.adjust_client_balance(vc["client_id"], -price)
+	await callback.answer("Запчасть удалена")
+	await cb_delete_menu(callback, storage)
+
+
+@router.callback_query(F.data.startswith("deljob:"))
+async def cb_delete_job(callback: CallbackQuery, storage: Storage) -> None:
+	job_id = int(callback.data.split(":", 1)[1])
+	info = await storage.delete_job(job_id)
+	if info is None:
+		await callback.answer("Элемент не найден")
+		return
+	vehicle_id, price = info
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	if vc:
+		await storage.adjust_client_balance(vc["client_id"], -price)
+	await callback.answer("Работа удалена")
+	await cb_delete_menu(callback, storage)
 
 
 @router.callback_query(F.data == "menu_profile")
 async def cb_menu_profile(callback: CallbackQuery, state: FSMContext) -> None:
 	await state.set_state(ProfileForm.height_cm)
-	await callback.message.edit_text(
-		"Введите ваш рост в сантиметрах (например, 180):",
-		reply_markup=back_to_menu_kb(),
-	)
+	await callback.message.edit_text("Введите ваш рост в сантиметрах (например, 180):")
 	await callback.answer()
 
 
@@ -276,9 +428,7 @@ async def process_weight(message: Message, state: FSMContext, storage: Storage) 
 		return
 	await storage.update_profile(user_id=user["user_id"], height_cm=height_cm, weight_kg=weight)
 	await state.clear()
-	await message.answer(
-		"Профиль сохранен. Возврат в меню.", reply_markup=main_menu_kb()
-	)
+	await message.answer("Профиль сохранен. Возврат в меню.", reply_markup=main_menu_kb())
 
 
 class CaloriesForm(StatesGroup):
@@ -288,9 +438,7 @@ class CaloriesForm(StatesGroup):
 @router.callback_query(F.data == "menu_goals")
 async def cb_menu_goals(callback: CallbackQuery, state: FSMContext) -> None:
 	await state.set_state(GoalForm.desired_weight_kg)
-	await callback.message.edit_text(
-		"Введите желаемый вес в кг:", reply_markup=back_to_menu_kb()
-	)
+	await callback.message.edit_text("Введите желаемый вес в кг:")
 	await callback.answer()
 
 
@@ -312,27 +460,25 @@ async def process_goal(message: Message, state: FSMContext, storage: Storage) ->
 	await message.answer("Цель сохранена. Возврат в меню.", reply_markup=main_menu_kb())
 
 
-@router.callback_query(F.data == "menu_connect_openai")  # обработчик кнопки Подключить ChatGPT
+@router.callback_query(F.data == "menu_connect_openai")
 async def cb_connect_openai(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
-	await state.set_state(ConnectOpenAI.api_key)  # переходим к состоянию ввода ключа
-	# Отправляем инструкцию с кликабельной ссылкой на страницу выдачи OpenAI API ключей
+	await state.set_state(ConnectOpenAI.api_key)
 	await callback.message.edit_text(
 		(
-			"Подключение к ChatGPT (OpenAI):\n"  # заголовок инструкции
+			"Подключение к ChatGPT (OpenAI):\n"
 			"1) Откройте страницу API Keys: "
-			"<a href='https://platform.openai.com/settings/keys'>platform.openai.com/settings/keys</a>\n"  # ссылка
-			"2) Нажмите Create new secret key и скопируйте ключ (начинается с sk-).\n"  # шаг создания ключа
-			"3) Отправьте ваш ключ сюда одним сообщением.\n"  # как передать ключ
-			"4) Чтобы удалить ключ и использовать общий из .env — отправьте слово УДАЛИТЬ.\n"  # как удалить ключ
-			"Важно: храните ключ в секрете и не публикуйте его."  # предупреждение о безопасности
+			"<a href='https://platform.openai.com/settings/keys'>platform.openai.com/settings/keys</a>\n"
+			"2) Нажмите Create new secret key и скопируйте ключ (начинается с sk-).\n"
+			"3) Отправьте ваш ключ сюда одним сообщением.\n"
+			"4) Чтобы удалить ключ и использовать общий из .env — отправьте слово УДАЛИТЬ.\n"
+			"Важно: храните ключ в секрете и не публикуйте его."
 		),
-		reply_markup=back_to_menu_kb(),  # кнопка «В меню»
-		disable_web_page_preview=True,  # скрываем превью ссылки
+		disable_web_page_preview=True,
 	)
 	await callback.answer()
 
 
-@router.message(ConnectOpenAI.api_key)  # прием и сохранение ключа
+@router.message(ConnectOpenAI.api_key)
 async def process_openai_key(message: Message, state: FSMContext, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if not user:
@@ -340,12 +486,12 @@ async def process_openai_key(message: Message, state: FSMContext, storage: Stora
 		await state.clear()
 		return
 	text = (message.text or "").strip()
-	if text.lower() in {"удалить", "delete", "remove"}:  # очистка ключа по слову
+	if text.lower() in {"удалить", "delete", "remove"}:
 		await storage.update_openai_key(user["user_id"], None)
 		await state.clear()
 		await message.answer("Ключ удалён. Будет использоваться ключ по умолчанию.", reply_markup=main_menu_kb())
 		return
-	await storage.update_openai_key(user["user_id"], text)  # сохраняем персональный ключ
+	await storage.update_openai_key(user["user_id"], text)
 	await state.clear()
 	await message.answer("Ключ сохранён. Можно генерировать планы.", reply_markup=main_menu_kb())
 
@@ -357,12 +503,11 @@ async def cb_menu_meals(callback: CallbackQuery, storage: Storage) -> None:
 		await callback.message.edit_text("Пользователь не найден. Наберите /start")
 		await callback.answer()
 		return
-	# Сначала предлагаем выбрать сложность блюд
 	await callback.message.edit_text("Выберите сложность рациона на сегодня:", reply_markup=meals_complexity_kb())
 	await callback.answer()
 
 
-@router.callback_query(F.data.in_({"menu_meals_simple", "menu_meals_gourmet"}))  # выбор сложности
+@router.callback_query(F.data.in_({"menu_meals_simple", "menu_meals_gourmet"}))
 async def cb_menu_meals_complexity(callback: CallbackQuery, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(callback.from_user.id)
 	if not user:
@@ -371,16 +516,15 @@ async def cb_menu_meals_complexity(callback: CallbackQuery, storage: Storage) ->
 		return
 	date_str = date.today().strftime("%Y-%m-%d")
 	cal = await storage.get_today_calories(user["user_id"], date_str)
-	complexity = "simple" if callback.data == "menu_meals_simple" else "gourmet"  # маппинг сложности
+	complexity = "simple" if callback.data == "menu_meals_simple" else "gourmet"
 	await callback.message.edit_text("Составляю питание на сегодня…")
-	text = make_meals_text(user, cal, user.get("openai_api_key"), complexity)  # передаём сложность и ключ
-	await callback.message.edit_text(text, reply_markup=back_to_menu_kb(), disable_web_page_preview=True)
+	text = make_meals_text(user, cal, user.get("openai_api_key"), complexity)
+	await callback.message.edit_text(text, reply_markup=main_menu_kb(), disable_web_page_preview=True)
 	await callback.answer()
 
 
 @router.message(F.text.regexp(r"^\d{2,5}$"))
 async def maybe_calories_input(message: Message, storage: Storage) -> None:
-	# Если от пользователя ожидаются калории за сегодня — записываем
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if not user:
 		return
@@ -396,13 +540,13 @@ async def maybe_calories_input(message: Message, storage: Storage) -> None:
 	await message.answer("Принято! Данные об активности сохранены.")
 
 
-@router.message(F.text.regexp(r"^\d{1,2}([.,]\d{1,2})?$"))  # парсим часы сна (целые или с десятичной частью)
+@router.message(F.text.regexp(r"^\d{1,2}([.,]\d{1,2})?$"))
 async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if not user:
 		return
 	date_str = date.today().strftime("%Y-%m-%d")
-	if not await storage.has_pending_sleep(user["user_id"], date_str):  # проверяем ожидание
+	if not await storage.has_pending_sleep(user["user_id"], date_str):
 		return
 	text = (message.text or "").strip().replace(",", ".")
 	try:
@@ -418,13 +562,12 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 
 @router.callback_query(F.data == "menu_clients")
 async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
-	# Покажем последних клиентов
 	clients = await storage.list_clients()
 	if not clients:
 		text = "Клиентов пока нет. Принимите авто, чтобы создать клиента."
 	else:
 		lines = [
-			f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'}"
+			f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'} — Долг: {c['balance'] or 0:.2f}"
 			for c in clients
 		]
 		text = "Клиенты:\n\n" + "\n".join(lines)
