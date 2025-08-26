@@ -29,3 +29,12 @@ def back_to_menu_kb() -> InlineKeyboardMarkup:
 	return InlineKeyboardMarkup(
 		inline_keyboard=[]
 	)
+
+
+def nav_kb(back_callback: str) -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[[
+			InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+			InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root"),
+		]]
+	)

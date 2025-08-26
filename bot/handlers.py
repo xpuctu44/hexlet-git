@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
-from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb
+from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb, nav_kb
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 
@@ -81,6 +81,7 @@ async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext) -> None
 	await state.set_state(IntakeCarForm.full_name)
 	await callback.message.edit_text(
 		"Приём авто в ремонт.\n\n1) Введите ФИО клиента:",
+		reply_markup=nav_kb("menu_root"),
 	)
 	await callback.answer()
 
@@ -94,7 +95,7 @@ async def intake_full_name(message: Message, state: FSMContext, storage: Storage
 	client_id = await storage.create_client(full_name)
 	await state.update_data(client_id=client_id, full_name=full_name)
 	await state.set_state(IntakeCarForm.phone)
-	await message.answer("2) Контактный номер для связи:")
+	await message.answer("2) Контактный номер для связи:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.phone)
@@ -106,7 +107,7 @@ async def intake_phone(message: Message, state: FSMContext, storage: Storage) ->
 		await storage.update_client_contact(client_id, phone)
 	await state.update_data(phone=phone)
 	await state.set_state(IntakeCarForm.car_make_model)
-	await message.answer("3) Марка и модель авто:")
+	await message.answer("3) Марка и модель авто:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.car_make_model)
@@ -118,7 +119,7 @@ async def intake_car_make_model(message: Message, state: FSMContext, storage: St
 		await storage.update_client_car(client_id, car)
 	await state.update_data(car_make_model=car)
 	await state.set_state(IntakeCarForm.year)
-	await message.answer("4) Год выпуска:")
+	await message.answer("4) Год выпуска:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.year)
@@ -129,7 +130,7 @@ async def intake_year(message: Message, state: FSMContext, storage: Storage) -> 
 		if year < 1950 or year > 2100:
 			raise ValueError
 	except ValueError:
-		await message.answer("Введите год числом, например 2015.")
+		await message.answer("Введите год числом, например 2015.", reply_markup=nav_kb("menu_root"))
 		return
 	data = await state.get_data()
 	client_id = data.get("client_id")
@@ -137,7 +138,7 @@ async def intake_year(message: Message, state: FSMContext, storage: Storage) -> 
 		await storage.update_client_year(client_id, year)
 	await state.update_data(year=year)
 	await state.set_state(IntakeCarForm.vin)
-	await message.answer("5) VIN:")
+	await message.answer("5) VIN:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.vin)
@@ -149,7 +150,7 @@ async def intake_vin(message: Message, state: FSMContext, storage: Storage) -> N
 		await storage.update_client_vin(client_id, vin)
 	await state.update_data(vin=vin)
 	await state.set_state(IntakeCarForm.plate)
-	await message.answer("6) Гос номер авто:")
+	await message.answer("6) Гос номер авто:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.plate)
@@ -161,7 +162,7 @@ async def intake_plate(message: Message, state: FSMContext, storage: Storage) ->
 		await storage.update_client_plate(client_id, plate)
 	await state.update_data(plate=plate)
 	await state.set_state(IntakeCarForm.sts)
-	await message.answer("7) СТС:")
+	await message.answer("7) СТС:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.sts)
@@ -173,7 +174,7 @@ async def intake_sts(message: Message, state: FSMContext, storage: Storage) -> N
 		await storage.update_client_sts(client_id, sts)
 	await state.update_data(sts=sts)
 	await state.set_state(IntakeCarForm.reason)
-	await message.answer("8) Причина обращения:")
+	await message.answer("8) Причина обращения:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.reason)
@@ -215,7 +216,7 @@ async def cb_put_in_garage(callback: CallbackQuery, state: FSMContext, storage: 
 	if client_id:
 		await storage.create_vehicle_from_client(client_id)
 		await state.clear()
-		await callback.message.edit_text("Авто добавлено в ГАРАЖ.")
+		await callback.message.edit_text("Авто добавлено в ГАРАЖ.", reply_markup=nav_kb("menu_garage"))
 	await callback.answer()
 
 
@@ -224,7 +225,7 @@ async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
 	vehicles = await storage.list_garage()
 	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not vehicles:
-		await callback.message.edit_text("Гараж пуст.")
+		await callback.message.edit_text("Гараж пуст.", reply_markup=nav_kb("menu_root"))
 		await callback.answer()
 		return
 	buttons = []
@@ -235,6 +236,7 @@ async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
 				callback_data=f"vehicle:{v['vehicle_id']}"
 			)
 		])
+	buttons.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")])
 	kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 	await callback.message.edit_text("Гараж: выберите авто", reply_markup=kb)
 	await callback.answer()
@@ -252,7 +254,7 @@ async def cb_vehicle_menu(callback: CallbackQuery, storage: Storage) -> None:
 		inline_keyboard=[
 			[InlineKeyboardButton(text="Добавить запчасть + работу", callback_data=f"addwork:{vehicle_id}")],
 			[InlineKeyboardButton(text="Удалить запчасть/работу", callback_data=f"delmenu:{vehicle_id}")],
-			[InlineKeyboardButton(text="⬅️ Назад к гаражу", callback_data="menu_garage")],
+			[InlineKeyboardButton(text="⬅️ Назад к гаражу", callback_data="menu_garage"), InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
 		]
 	)
 	await callback.message.edit_text(
@@ -267,7 +269,7 @@ async def cb_addwork_start(callback: CallbackQuery, state: FSMContext) -> None:
 	vehicle_id = int(callback.data.split(":", 1)[1])
 	await state.set_state(AddWorkForm.part_name)
 	await state.update_data(vehicle_id=vehicle_id)
-	await callback.message.edit_text("1) Название запчасти:")
+	await callback.message.edit_text("1) Название запчасти:", reply_markup=nav_kb(f"vehicle:{vehicle_id}"))
 	await callback.answer()
 
 
@@ -275,11 +277,11 @@ async def cb_addwork_start(callback: CallbackQuery, state: FSMContext) -> None:
 async def addwork_part_name(message: Message, state: FSMContext) -> None:
 	name = (message.text or "").strip()
 	if not name:
-		await message.answer("Укажите название запчасти.")
+		await message.answer("Укажите название запчасти.", reply_markup=nav_kb("menu_garage"))
 		return
 	await state.update_data(part_name=name)
 	await state.set_state(AddWorkForm.part_price)
-	await message.answer("2) Цена запчасти:")
+	await message.answer("2) Цена запчасти:", reply_markup=nav_kb("menu_garage"))
 
 
 @router.message(AddWorkForm.part_price)
@@ -290,28 +292,27 @@ async def addwork_part_price(message: Message, state: FSMContext, storage: Stora
 		if price < 0:
 			raise ValueError
 	except ValueError:
-		await message.answer("Введите цену числом, например 3500.")
+		await message.answer("Введите цену числом, например 3500.", reply_markup=nav_kb("menu_garage"))
 		return
 	data = await state.get_data()
 	vehicle_id = int(data["vehicle_id"])
 	await storage.add_part(vehicle_id, data.get("part_name", ""), price)
-	# Debt increase
 	vc = await storage.get_vehicle_with_client(vehicle_id)
 	if vc:
 		await storage.adjust_client_balance(vc["client_id"], price)
 	await state.set_state(AddWorkForm.job_name)
-	await message.answer("3) Название работы:")
+	await message.answer("3) Название работы:", reply_markup=nav_kb(f"vehicle:{vehicle_id}"))
 
 
 @router.message(AddWorkForm.job_name)
 async def addwork_job_name(message: Message, state: FSMContext) -> None:
 	name = (message.text or "").strip()
 	if not name:
-		await message.answer("Укажите название работы.")
+		await message.answer("Укажите название работы.", reply_markup=nav_kb("menu_garage"))
 		return
 	await state.update_data(job_name=name)
 	await state.set_state(AddWorkForm.job_price)
-	await message.answer("4) Стоимость работы:")
+	await message.answer("4) Стоимость работы:", reply_markup=nav_kb("menu_garage"))
 
 
 @router.message(AddWorkForm.job_price)
@@ -322,7 +323,7 @@ async def addwork_job_price(message: Message, state: FSMContext, storage: Storag
 		if price < 0:
 			raise ValueError
 	except ValueError:
-		await message.answer("Введите стоимость числом, например 2500.")
+		await message.answer("Введите стоимость числом, например 2500.", reply_markup=nav_kb("menu_garage"))
 		return
 	data = await state.get_data()
 	vehicle_id = int(data["vehicle_id"])
@@ -330,13 +331,13 @@ async def addwork_job_price(message: Message, state: FSMContext, storage: Storag
 	vc = await storage.get_vehicle_with_client(vehicle_id)
 	if vc:
 		await storage.adjust_client_balance(vc["client_id"], price)
-	# Show post-menu
 	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	kb = InlineKeyboardMarkup(
 		inline_keyboard=[
 			[InlineKeyboardButton(text="Вернуться в гараж", callback_data="menu_garage")],
 			[InlineKeyboardButton(text="Добавить ещё одну работу", callback_data=f"addwork:{vehicle_id}")],
 			[InlineKeyboardButton(text="Удалить запчасть/работу", callback_data=f"delmenu:{vehicle_id}")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
 		]
 	)
 	await state.clear()
@@ -354,10 +355,11 @@ async def cb_delete_menu(callback: CallbackQuery, storage: Storage) -> None:
 	for j in jobs:
 		rows.append([InlineKeyboardButton(text=f"[Работа] {j['name']} — {j['price']:.2f}", callback_data=f"deljob:{j['job_id']}")])
 	if not rows:
-		await callback.message.edit_text("Нет запчастей или работ для удаления.")
+		await callback.message.edit_text("Нет запчастей или работ для удаления.", reply_markup=nav_kb(f"vehicle:{vehicle_id}"))
 		await callback.answer()
 		return
 	rows.append([InlineKeyboardButton(text="⬅️ Назад к авто", callback_data=f"vehicle:{vehicle_id}")])
+	rows.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")])
 	kb = InlineKeyboardMarkup(inline_keyboard=rows)
 	await callback.message.edit_text("Удалить элемент:", reply_markup=kb)
 	await callback.answer()
@@ -396,7 +398,7 @@ async def cb_delete_job(callback: CallbackQuery, storage: Storage) -> None:
 @router.callback_query(F.data == "menu_profile")
 async def cb_menu_profile(callback: CallbackQuery, state: FSMContext) -> None:
 	await state.set_state(ProfileForm.height_cm)
-	await callback.message.edit_text("Введите ваш рост в сантиметрах (например, 180):")
+	await callback.message.edit_text("Введите ваш рост в сантиметрах (например, 180):", reply_markup=nav_kb("menu_root"))
 	await callback.answer()
 
 
@@ -404,11 +406,11 @@ async def cb_menu_profile(callback: CallbackQuery, state: FSMContext) -> None:
 async def process_height(message: Message, state: FSMContext) -> None:
 	text = (message.text or "").strip()
 	if not text.isdigit():
-		await message.answer("Пожалуйста, введите число в сантиметрах, например 180.")
+		await message.answer("Пожалуйста, введите число в сантиметрах, например 180.", reply_markup=nav_kb("menu_root"))
 		return
 	await state.update_data(height_cm=int(text))
 	await state.set_state(ProfileForm.weight_kg)
-	await message.answer("Теперь введите ваш текущий вес в кг (например, 82.5):")
+	await message.answer("Теперь введите ваш текущий вес в кг (например, 82.5):", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(ProfileForm.weight_kg)
@@ -417,13 +419,13 @@ async def process_weight(message: Message, state: FSMContext, storage: Storage) 
 	try:
 		weight = float(text)
 	except ValueError:
-		await message.answer("Введите число, например 82.5")
+		await message.answer("Введите число, например 82.5", reply_markup=nav_kb("menu_root"))
 		return
 	data = await state.get_data()
 	height_cm = int(data["height_cm"]) if "height_cm" in data else None
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if user is None:
-		await message.answer("Пользователь не найден. Наберите /start")
+		await message.answer("Пользователь не найден. Наберите /start", reply_markup=nav_kb("menu_root"))
 		await state.clear()
 		return
 	await storage.update_profile(user_id=user["user_id"], height_cm=height_cm, weight_kg=weight)
@@ -438,7 +440,7 @@ class CaloriesForm(StatesGroup):
 @router.callback_query(F.data == "menu_goals")
 async def cb_menu_goals(callback: CallbackQuery, state: FSMContext) -> None:
 	await state.set_state(GoalForm.desired_weight_kg)
-	await callback.message.edit_text("Введите желаемый вес в кг:")
+	await callback.message.edit_text("Введите желаемый вес в кг:", reply_markup=nav_kb("menu_root"))
 	await callback.answer()
 
 
@@ -448,11 +450,11 @@ async def process_goal(message: Message, state: FSMContext, storage: Storage) ->
 	try:
 		desired = float(text)
 	except ValueError:
-		await message.answer("Введите число, например 78")
+		await message.answer("Введите число, например 78", reply_markup=nav_kb("menu_root"))
 		return
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if user is None:
-		await message.answer("Пользователь не найден. Наберите /start")
+		await message.answer("Пользователь не найден. Наберите /start", reply_markup=nav_kb("menu_root"))
 		await state.clear()
 		return
 	await storage.update_goal(user_id=user["user_id"], desired_weight_kg=desired)
@@ -474,6 +476,7 @@ async def cb_connect_openai(callback: CallbackQuery, state: FSMContext, storage:
 			"Важно: храните ключ в секрете и не публикуйте его."
 		),
 		disable_web_page_preview=True,
+		reply_markup=nav_kb("menu_root"),
 	)
 	await callback.answer()
 
@@ -482,7 +485,7 @@ async def cb_connect_openai(callback: CallbackQuery, state: FSMContext, storage:
 async def process_openai_key(message: Message, state: FSMContext, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(message.from_user.id)
 	if not user:
-		await message.answer("Пользователь не найден. Наберите /start")
+		await message.answer("Пользователь не найден. Наберите /start", reply_markup=nav_kb("menu_root"))
 		await state.clear()
 		return
 	text = (message.text or "").strip()
@@ -500,7 +503,7 @@ async def process_openai_key(message: Message, state: FSMContext, storage: Stora
 async def cb_menu_meals(callback: CallbackQuery, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(callback.from_user.id)
 	if not user:
-		await callback.message.edit_text("Пользователь не найден. Наберите /start")
+		await callback.message.edit_text("Пользователь не найден. Наберите /start", reply_markup=nav_kb("menu_root"))
 		await callback.answer()
 		return
 	await callback.message.edit_text("Выберите сложность рациона на сегодня:", reply_markup=meals_complexity_kb())
@@ -511,7 +514,7 @@ async def cb_menu_meals(callback: CallbackQuery, storage: Storage) -> None:
 async def cb_menu_meals_complexity(callback: CallbackQuery, storage: Storage) -> None:
 	user = await storage.get_user_by_tg(callback.from_user.id)
 	if not user:
-		await callback.message.edit_text("Пользователь не найден. Наберите /start")
+		await callback.message.edit_text("Пользователь не найден. Наберите /start", reply_markup=nav_kb("menu_root"))
 		await callback.answer()
 		return
 	date_str = date.today().strftime("%Y-%m-%d")
@@ -565,11 +568,13 @@ async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
 	clients = await storage.list_clients()
 	if not clients:
 		text = "Клиентов пока нет. Принимите авто, чтобы создать клиента."
-	else:
-		lines = [
-			f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'} — Долг: {c['balance'] or 0:.2f}"
-			for c in clients
-		]
-		text = "Клиенты:\n\n" + "\n".join(lines)
-	await callback.message.edit_text(text)
+		await callback.message.edit_text(text, reply_markup=nav_kb("menu_root"))
+		await callback.answer()
+		return
+	lines = [
+		f"#{c['client_id']}: {c['full_name']} — {c['phone'] or 'без телефона'} — {c['car_make_model'] or 'без авто'} — Долг: {c['balance'] or 0:.2f}"
+		for c in clients
+	]
+	text = "Клиенты:\n\n" + "\n".join(lines)
+	await callback.message.edit_text(text, reply_markup=nav_kb("menu_root"))
 	await callback.answer()
