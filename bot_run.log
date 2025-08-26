@@ -1133,3 +1133,14 @@ INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - '
 INFO:aiogram.dispatcher:Polling stopped
 INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.event:Update id=271284855 is handled. Duration 573 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284856 is handled. Duration 193 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284857 is handled. Duration 444 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284858 is handled. Duration 223 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284859 is handled. Duration 270 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284860 is handled. Duration 283 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284861 is handled. Duration 394 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284862 is handled. Duration 285 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284863 is handled. Duration 235 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284864 is handled. Duration 378 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284865 is handled. Duration 195 ms by bot id=8312668975
