@@ -524,3 +524,20 @@ Traceback (most recent call last):
   File "/workspace/.venv/lib/python3.13/site-packages/aiogram/client/session/base.py", line 120, in check_response
     raise TelegramBadRequest(method=method, message=description)
 aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: message text is empty
+INFO:aiogram.event:Update id=271284804 is handled. Duration 197 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284805 is handled. Duration 205 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284806 is handled. Duration 195 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284807 is handled. Duration 219 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284808 is handled. Duration 242 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284809 is handled. Duration 109 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284810 is handled. Duration 182 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284811 is handled. Duration 112 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284812 is handled. Duration 119 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284813 is handled. Duration 193 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284814 is handled. Duration 309 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284815 is handled. Duration 201 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284816 is handled. Duration 223 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284817 is handled. Duration 210 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284818 is handled. Duration 275 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284819 is handled. Duration 341 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284820 is handled. Duration 316 ms by bot id=8312668975
