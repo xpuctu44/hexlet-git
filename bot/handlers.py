@@ -23,7 +23,11 @@ def _format_duration_since(created_at_iso: str) -> str:
 		started = datetime.fromisoformat(created_at_iso)
 	except Exception:
 		return "?"
-	now = datetime.now(started.tzinfo or timezone.utc)
+	# Normalize timezone handling
+	if started.tzinfo is None:
+		now = datetime.utcnow()
+	else:
+		now = datetime.now(started.tzinfo)
 	delta = now - started
 	days = delta.days
 	hours = delta.seconds // 3600
@@ -73,8 +77,7 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 		username=message.from_user.username,
 	)
 	await state.clear()
-	# Explicitly remove any Reply Keyboard
-	await message.answer("", reply_markup=ReplyKeyboardRemove())
+	# Directly show main menu (avoid sending empty text)
 	await message.answer(
 		"Привет! Выберите раздел меню:",
 		reply_markup=main_menu_kb(),

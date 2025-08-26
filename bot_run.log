@@ -1115,3 +1115,8 @@ Traceback (most recent call last):
 aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: message text is empty
 INFO:aiogram.event:Update id=271284845 is not handled. Duration 6 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271284846 is handled. Duration 218 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
