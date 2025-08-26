@@ -3,7 +3,7 @@ from typing import Optional
 
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove, FSInputFile
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
@@ -11,6 +11,8 @@ from aiogram.exceptions import TelegramBadRequest
 from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb, nav_kb
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
+from .pdf_generator import generate_order_pdf
+import os
 
 
 router = Router()
@@ -596,3 +598,70 @@ async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
 	text = "Клиенты:\n\n" + "\n".join(lines)
 	await callback.message.edit_text(text, reply_markup=nav_kb("menu_root"))
 	await callback.answer()
+
+
+@router.callback_query(F.data == "menu_create_order")
+async def cb_menu_create_order(callback: CallbackQuery, storage: Storage) -> None:
+	vehicles = await storage.list_garage()
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	if not vehicles:
+		await callback.message.edit_text("В гараже нет авто для заказа-наряда.", reply_markup=nav_kb("menu_root"))
+		await callback.answer()
+		return
+	buttons = []
+	for v in vehicles:
+		buttons.append([
+			InlineKeyboardButton(
+				text=f"#{v['vehicle_id']} — {v['full_name']} — {v['car_make_model']} ({v['plate'] or 'без номера'})",
+				callback_data=f"makeorder:{v['vehicle_id']}"
+			)
+		])
+	buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="menu_root"), InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")])
+	kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+	await callback.message.edit_text("Выберите авто для заказа-наряда:", reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("makeorder:"))
+async def cb_make_order(callback: CallbackQuery, storage: Storage) -> None:
+	vehicle_id = int(callback.data.split(":", 1)[1])
+	vc = await storage.get_vehicle_with_client(vehicle_id)
+	if not vc:
+		await callback.answer("Авто не найдено")
+		return
+	# Collect works and parts from DB
+	parts, jobs = await storage.list_items_for_vehicle(vehicle_id)
+	# Prepare data shapes for PDF
+	customer = {
+		"full_name": vc.get("full_name", ""),
+		"phone": "",
+	}
+	# fetch more client details
+	client = await storage.get_client(vc["client_id"])
+	if client:
+		customer["phone"] = client.get("phone", "")
+	vehicle = {
+		"car_make_model": client.get("car_make_model", "") if client else "",
+		"year": client.get("year", "") if client else "",
+		"vin": client.get("vin", "") if client else "",
+		"plate": client.get("plate", "") if client else "",
+	}
+	works_list = [{"name": j["name"], "price": j["price"]} for j in jobs]
+	parts_list = [{"article": "-", "name": p["name"], "qty": 1, "price": p["price"]} for p in parts]
+	# Order number
+	order_number = await storage.create_order(vehicle_id)
+	# Generate PDF
+	orders_dir = "/workspace/orders"
+	os.makedirs(orders_dir, exist_ok=True)
+	pdf_path = os.path.join(orders_dir, f"order_{order_number}.pdf")
+	generate_order_pdf(
+		output_path=pdf_path,
+		order_number=order_number,
+		customer=customer,
+		vehicle=vehicle,
+		works=works_list,
+		parts=parts_list,
+	)
+	# Send file
+	await callback.message.answer_document(FSInputFile(pdf_path), caption=f"Заказ-наряд № {order_number}")
+	await callback.answer("Сформировано")

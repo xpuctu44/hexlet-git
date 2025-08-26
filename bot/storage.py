@@ -115,6 +115,19 @@ class Storage:
 				);
 				"""
 			)
+			# Orders table
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS orders (
+					order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					order_number INTEGER NOT NULL,
+					vehicle_id INTEGER NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
+				);
+				"""
+			)
+			await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number)")
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -556,3 +569,20 @@ class Storage:
 			await db.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
 			await db.commit()
 			return vehicle_id, float(price)
+
+	async def get_next_order_number(self) -> int:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT COALESCE(MAX(order_number), 0) FROM orders")
+			row = await cur.fetchone()
+			return int(row[0] or 0) + 1
+
+	async def create_order(self, vehicle_id: int) -> int:
+		now = datetime.utcnow().isoformat()
+		order_number = await self.get_next_order_number()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"INSERT INTO orders(order_number, vehicle_id, created_at) VALUES(?,?,?)",
+				(order_number, vehicle_id, now),
+			)
+			await db.commit()
+		return order_number
