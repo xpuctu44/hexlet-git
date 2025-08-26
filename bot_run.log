@@ -5,3 +5,17 @@ INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
 INFO:aiogram.event:Update id=271284758 is not handled. Duration 3 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271284757 is not handled. Duration 4 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/bot/main.py", line 10, in <module>
+    from .handlers import router as handlers_router
+  File "/workspace/bot/handlers.py", line 197, in <module>
+    @router.callback_query(F.data.in_("menu_meals_simple", "menu_meals_gourmet"))  # выбор сложности
+                           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: MagicFilter.in_() takes 2 positional arguments but 3 were given
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'

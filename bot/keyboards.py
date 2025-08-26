@@ -19,6 +19,9 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 			[
 				InlineKeyboardButton(text="Питание на сегодня", callback_data="menu_meals"),
 			],
+			[
+				InlineKeyboardButton(text="Клиенты", callback_data="menu_clients"),
+			],
 		]
 	)
 

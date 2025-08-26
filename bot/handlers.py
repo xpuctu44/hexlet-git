@@ -246,3 +246,17 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 		return
 	await storage.set_daily_sleep_hours(user["user_id"], date_str, hours)
 	await message.answer("Спасибо! Часы сна сохранены.")
+
+
+@router.callback_query(F.data == "menu_clients")
+async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
+	# Простая заглушка: покажем количество пользователей и подсказку
+	users = await storage.list_users()
+	total = len(users)
+	text = (
+		"Раздел: Клиенты\n\n"
+		f"Всего клиентов: {total}\n\n"
+		"Скоро здесь появится список клиентов и поиск."
+	)
+	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.answer()
