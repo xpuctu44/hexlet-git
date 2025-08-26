@@ -3,7 +3,7 @@ from typing import Optional
 
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
@@ -57,6 +57,8 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 		username=message.from_user.username,
 	)
 	await state.clear()
+	# Explicitly remove any Reply Keyboard
+	await message.answer("", reply_markup=ReplyKeyboardRemove())
 	await message.answer(
 		"Привет! Выберите раздел меню:",
 		reply_markup=main_menu_kb(),
