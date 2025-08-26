@@ -50,20 +50,19 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 	)
 	await state.clear()
 	await message.answer(
-		"Привет! Я помогу с планом тренировок и питания. Выберите раздел меню:",
+		"Привет! Выберите раздел меню:",
 		reply_markup=main_menu_kb(),
 	)
 
 
 @router.callback_query(F.data == "menu_root")
 async def cb_menu_root(callback: CallbackQuery) -> None:
-	await callback.answer()  # отвечаем callback сразу, чтобы избежать таймаута
+	await callback.answer()
 	try:
 		await callback.message.edit_text(
 			"Главное меню:", reply_markup=main_menu_kb()
 		)
 	except TelegramBadRequest as e:
-		# Игнорируем ситуацию, когда сообщение не изменилось
 		if "message is not modified" in str(e):
 			return
 		raise
@@ -74,7 +73,6 @@ async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext) -> None
 	await state.set_state(IntakeCarForm.full_name)
 	await callback.message.edit_text(
 		"Приём авто в ремонт.\n\n1) Введите ФИО клиента:",
-		reply_markup=back_to_menu_kb(),
 	)
 	await callback.answer()
 
@@ -196,7 +194,6 @@ async def intake_reason(message: Message, state: FSMContext, storage: Storage) -
 	kb = InlineKeyboardMarkup(
 		inline_keyboard=[
 			[InlineKeyboardButton(text="Поставить авто в ГАРАЖ", callback_data="put_in_garage")],
-			[InlineKeyboardButton(text="⬅️ В меню", callback_data="menu_root")],
 		]
 	)
 	await state.set_state(IntakeCarForm.confirm)
@@ -211,8 +208,7 @@ async def cb_put_in_garage(callback: CallbackQuery, state: FSMContext, storage: 
 		vehicle_id = await storage.create_vehicle_from_client(client_id)
 		await state.clear()
 		await callback.message.edit_text(
-			"Авто добавлено в ГАРАЖ. Открыть список гаража?",
-			reply_markup=back_to_menu_kb(),
+			"Авто добавлено в ГАРАЖ.",
 		)
 	await callback.answer()
 
@@ -228,7 +224,17 @@ async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
 			for v in vehicles
 		]
 		text = "Гараж:\n\n" + "\n".join(lines)
-	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.message.edit_text(text)
+	await callback.answer()
+
+
+@router.callback_query(F.data == "menu_root")
+async def _noop_back(callback: CallbackQuery) -> None:
+	# Ничего не показываем дополнительно — просто обновим меню
+	try:
+		await callback.message.edit_text("Главное меню:", reply_markup=main_menu_kb())
+	except TelegramBadRequest:
+		pass
 	await callback.answer()
 
 
@@ -422,5 +428,5 @@ async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
 			for c in clients
 		]
 		text = "Клиенты:\n\n" + "\n".join(lines)
-	await callback.message.edit_text(text, reply_markup=back_to_menu_kb())
+	await callback.message.edit_text(text)
 	await callback.answer()
