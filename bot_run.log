@@ -1,3 +1,7 @@
 INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @puzikarformabot id=8093306824 - 'PuzikArbuzik Форма'
 Отсутствует TELEGRAM_BOT_TOKEN. Укажите его в .env или переменных окружения.
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.event:Update id=271284758 is not handled. Duration 3 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271284757 is not handled. Duration 4 ms by bot id=8312668975
