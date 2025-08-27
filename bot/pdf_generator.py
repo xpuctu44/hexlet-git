@@ -191,9 +191,17 @@ def generate_order_pdf(
 	story.append(_P(f"Всего к оплате (прописью): {_rub_text(total_all)}", styleN))
 	story.append(Spacer(1, 6*mm))
 
-	# Signatures
+	# Signatures with additional texts
+	left_note = _P(
+		"Транспортное средство сдал, с условиями выполнения заказа, инструкциями касательно правил поведения на территории СТО ознакомлен и обязуюсь их выполнять",
+		styleN,
+	)
+	right_note = _P("Транспортное средство принял от ", styleN)
+	left_sig = _P("Исполнитель: ____________ / Даниил", styleN)
+	right_sig = _P(f"Заказчик: ____________ / {customer.get('full_name','')}", styleN)
 	sig = Table([
-		[_P("Исполнитель: ____________ / Даниил", styleN), _P(f"Заказчик: ____________ / {customer.get('full_name','')}", styleN)],
+		[left_note, right_note],
+		[left_sig, right_sig],
 	])
 	sig.setStyle(TableStyle([
 		("VALIGN", (0,0), (-1,-1), "TOP"),
