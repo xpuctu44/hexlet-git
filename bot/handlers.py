@@ -70,6 +70,7 @@ class IntakeCarForm(StatesGroup):
 class AddWorkForm(StatesGroup):
 	vehicle_id = State()
 	part_name = State()
+	part_qty = State()
 	part_price = State()
 	job_name = State()
 	job_price = State()
@@ -445,8 +446,23 @@ async def addwork_part_name(message: Message, state: FSMContext) -> None:
 		await message.answer("Укажите название запчасти.", reply_markup=nav_kb("menu_garage"))
 		return
 	await state.update_data(part_name=name)
+	await state.set_state(AddWorkForm.part_qty)
+	await message.answer("2) Количество (например, 1 или 2.5):", reply_markup=nav_kb("menu_garage"))
+
+
+@router.message(AddWorkForm.part_qty)
+async def addwork_part_qty(message: Message, state: FSMContext) -> None:
+	text = (message.text or "").replace(",", ".").strip()
+	try:
+		qty = float(text)
+		if qty <= 0:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите количество числом, например 1 или 2.5.", reply_markup=nav_kb("menu_garage"))
+		return
+	await state.update_data(part_qty=qty)
 	await state.set_state(AddWorkForm.part_price)
-	await message.answer("2) Цена запчасти:", reply_markup=nav_kb("menu_garage"))
+	await message.answer("3) Цена запчасти за единицу:", reply_markup=nav_kb("menu_garage"))
 
 
 @router.message(AddWorkForm.part_price)
@@ -461,12 +477,13 @@ async def addwork_part_price(message: Message, state: FSMContext, storage: Stora
 		return
 	data = await state.get_data()
 	vehicle_id = int(data["vehicle_id"])
-	await storage.add_part(vehicle_id, data.get("part_name", ""), price)
+	qty = float(data.get("part_qty", 1))
+	await storage.add_part(vehicle_id, data.get("part_name", ""), price, qty)
 	vc = await storage.get_vehicle_with_client(vehicle_id)
 	if vc:
-		await storage.adjust_client_balance(vc["client_id"], price)
+		await storage.adjust_client_balance(vc["client_id"], price * qty)
 	await state.set_state(AddWorkForm.job_name)
-	await message.answer("3) Название работы:", reply_markup=nav_kb(f"vehicle:{vehicle_id}"))
+	await message.answer("4) Название работы:", reply_markup=nav_kb(f"vehicle:{vehicle_id}"))
 
 
 @router.message(AddWorkForm.job_name)
@@ -477,7 +494,7 @@ async def addwork_job_name(message: Message, state: FSMContext) -> None:
 		return
 	await state.update_data(job_name=name)
 	await state.set_state(AddWorkForm.job_price)
-	await message.answer("4) Стоимость работы:", reply_markup=nav_kb("menu_garage"))
+	await message.answer("5) Стоимость работы:", reply_markup=nav_kb("menu_garage"))
 
 
 @router.message(AddWorkForm.job_price)
@@ -911,7 +928,7 @@ async def cb_make_order(callback: CallbackQuery, storage: Storage) -> None:
 		"reason": client.get("reason", "") if client else "",
 	}
 	works_list = [{"name": j["name"], "price": j["price"]} for j in jobs]
-	parts_list = [{"article": "-", "name": p["name"], "qty": 1, "price": p["price"]} for p in parts]
+	parts_list = [{"article": "-", "name": p["name"], "qty": p.get("qty", 1), "price": p["price"]} for p in parts]
 	# Order number
 	order_number = await storage.create_order(vehicle_id)
 	# Generate PDF

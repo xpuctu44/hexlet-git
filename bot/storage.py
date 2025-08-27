@@ -131,11 +131,17 @@ class Storage:
 					vehicle_id INTEGER NOT NULL,
 					name TEXT NOT NULL,
 					price REAL NOT NULL,
+					qty REAL DEFAULT 1,
 					created_at TEXT NOT NULL,
 					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
 				);
 				"""
 			)
+			# Ensure qty column exists for parts
+			try:
+				await db.execute("ALTER TABLE parts ADD COLUMN qty REAL DEFAULT 1")
+			except Exception:
+				pass
 			await db.execute(
 				"""
 				CREATE TABLE IF NOT EXISTS jobs (
@@ -613,15 +619,15 @@ class Storage:
 			await db.commit()
 
 	# ===== Parts and Jobs =====
-	async def add_part(self, vehicle_id: int, name: str, price: float) -> int:
+	async def add_part(self, vehicle_id: int, name: str, price: float, qty: float = 1.0) -> int:
 		now = datetime.utcnow().isoformat()
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				INSERT INTO parts(vehicle_id, name, price, created_at)
-				VALUES(?,?,?,?)
+				INSERT INTO parts(vehicle_id, name, price, qty, created_at)
+				VALUES(?,?,?,?,?)
 				""",
-				(vehicle_id, name, price, now),
+				(vehicle_id, name, price, qty, now),
 			)
 			await db.commit()
 			return cursor.lastrowid
@@ -641,9 +647,9 @@ class Storage:
 
 	async def list_items_for_vehicle(self, vehicle_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
 		async with aiosqlite.connect(self.db_path) as db:
-			c1 = await db.execute("SELECT part_id, name, price FROM parts WHERE vehicle_id=? ORDER BY part_id DESC", (vehicle_id,))
+			c1 = await db.execute("SELECT part_id, name, price, qty FROM parts WHERE vehicle_id=? ORDER BY part_id DESC", (vehicle_id,))
 			parts = [
-				{"part_id": r[0], "name": r[1], "price": r[2]}
+				{"part_id": r[0], "name": r[1], "price": r[2], "qty": r[3]}
 				for r in await c1.fetchall()
 			]
 			c2 = await db.execute("SELECT job_id, name, price FROM jobs WHERE vehicle_id=? ORDER BY job_id DESC", (vehicle_id,))
