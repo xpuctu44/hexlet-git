@@ -139,9 +139,26 @@ async def cb_client_delete_menu(callback: CallbackQuery, storage: Storage) -> No
 @router.callback_query(F.data.startswith("clientdel:"))
 async def cb_client_delete(callback: CallbackQuery, storage: Storage) -> None:
 	client_id = int(callback.data.split(":", 1)[1])
- 	await storage.delete_client(client_id)
- 	await callback.message.edit_text("Клиент удалён.", reply_markup=nav_kb("menu_clients"))
- 	await callback.answer("Удалено")
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"clientdelconfirm:{client_id}")],
+			[InlineKeyboardButton(text="❌ Отмена", callback_data="menu_clients")],
+		]
+	)
+	await callback.message.edit_text(
+		f"Вы уверены, что хотите удалить клиента #{client_id}? Это действие удалит все связанные данные.",
+		reply_markup=kb,
+	)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("clientdelconfirm:"))
+async def cb_client_delete_confirm(callback: CallbackQuery, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	await storage.delete_client(client_id)
+	await callback.message.edit_text("Клиент удалён.", reply_markup=nav_kb("menu_clients"))
+	await callback.answer("Удалено")
 
 @router.message(IntakeCarForm.full_name)
 async def intake_full_name(message: Message, state: FSMContext, storage: Storage) -> None:
