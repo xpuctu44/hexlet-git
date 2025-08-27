@@ -111,14 +111,18 @@ def generate_order_pdf(
 	story.append(meta_table)
 	story.append(Spacer(1, 4*mm))
 
-	# Customer and vehicle block
+	# Customer and vehicle block (extended)
 	story.append(_P("<b>Данные заказчика и автомобиля</b>", styleH2))
 	cust_lines = [
 		f"Заказчик: {customer.get('full_name','')}",
 		f"Телефон: {customer.get('phone','')}",
 		f"Авто: {vehicle.get('car_make_model','')} {vehicle.get('year','')}",
+		f"Пробег: {vehicle.get('mileage','')}",
 		f"VIN: {vehicle.get('vin','')}",
 		f"Гос. номер: {vehicle.get('plate','')}",
+		f"СТС: {vehicle.get('sts','')}",
+		f"ПТС: {vehicle.get('pts','')}",
+		f"Причина обращения: {vehicle.get('reason','')}",
 	]
 	for ln in cust_lines:
 		story.append(_P(ln, styleN))

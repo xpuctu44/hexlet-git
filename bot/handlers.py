@@ -799,8 +799,12 @@ async def cb_make_order(callback: CallbackQuery, storage: Storage) -> None:
 	vehicle = {
 		"car_make_model": client.get("car_make_model", "") if client else "",
 		"year": client.get("year", "") if client else "",
+		"mileage": client.get("mileage", "") if client else "",
 		"vin": client.get("vin", "") if client else "",
 		"plate": client.get("plate", "") if client else "",
+		"sts": client.get("sts", "") if client else "",
+		"pts": client.get("pts", "") if client else "",
+		"reason": client.get("reason", "") if client else "",
 	}
 	works_list = [{"name": j["name"], "price": j["price"]} for j in jobs]
 	parts_list = [{"article": "-", "name": p["name"], "qty": 1, "price": p["price"]} for p in parts]
