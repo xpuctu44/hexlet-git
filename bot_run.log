@@ -2915,3 +2915,6 @@ INFO:aiogram.event:Update id=271285143 is handled. Duration 197 ms by bot id=831
 INFO:aiogram.event:Update id=271285144 is handled. Duration 199 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285145 is handled. Duration 290 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285146 is handled. Duration 774 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped

@@ -61,6 +61,10 @@ class IntakeCarForm(StatesGroup):
 	pts = State()
 	reason = State()
 	confirm = State()
+	body_type = State()
+	color = State()
+	engine_number = State()
+	car_class = State()
 
 
 class AddWorkForm(StatesGroup):
@@ -217,21 +221,69 @@ async def intake_year(message: Message, state: FSMContext, storage: Storage) -> 
 
 @router.message(IntakeCarForm.mileage)
 async def intake_mileage(message: Message, state: FSMContext, storage: Storage) -> None:
-    text = (message.text or "").replace(" ", "").strip()
-    try:
-        mileage = int(text)
-        if mileage < 0 or mileage > 3000000:
-            raise ValueError
-    except ValueError:
-        await message.answer("Введите пробег целым числом, например 152000.", reply_markup=nav_kb("menu_root"))
-        return
-    data = await state.get_data()
-    client_id = data.get("client_id")
-    if client_id:
-        await storage.update_client_mileage(client_id, mileage)
-    await state.update_data(mileage=mileage)
-    await state.set_state(IntakeCarForm.vin)
-    await message.answer("6) VIN:", reply_markup=nav_kb("menu_root"))
+	text = (message.text or "").replace(" ", "").strip()
+	try:
+		mileage = int(text)
+		if mileage < 0 or mileage > 3000000:
+			raise ValueError
+	except ValueError:
+		await message.answer("Введите пробег целым числом, например 152000.", reply_markup=nav_kb("menu_root"))
+		return
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_mileage(client_id, mileage)
+	await state.update_data(mileage=mileage)
+	await state.set_state(IntakeCarForm.body_type)
+	await message.answer("6) Тип кузова:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(IntakeCarForm.body_type)
+async def intake_body_type(message: Message, state: FSMContext, storage: Storage) -> None:
+	body_type = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_body_type(client_id, body_type)
+	await state.update_data(body_type=body_type)
+	await state.set_state(IntakeCarForm.color)
+	await message.answer("7) Цвет:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(IntakeCarForm.color)
+async def intake_color(message: Message, state: FSMContext, storage: Storage) -> None:
+	color = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_color(client_id, color)
+	await state.update_data(color=color)
+	await state.set_state(IntakeCarForm.engine_number)
+	await message.answer("8) Номер двигателя:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(IntakeCarForm.engine_number)
+async def intake_engine_number(message: Message, state: FSMContext, storage: Storage) -> None:
+	eng = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_engine_number(client_id, eng)
+	await state.update_data(engine_number=eng)
+	await state.set_state(IntakeCarForm.car_class)
+	await message.answer("9) Класс:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(IntakeCarForm.car_class)
+async def intake_car_class(message: Message, state: FSMContext, storage: Storage) -> None:
+	cls = (message.text or "").strip()
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	if client_id:
+		await storage.update_client_car_class(client_id, cls)
+	await state.update_data(car_class=cls)
+	await state.set_state(IntakeCarForm.vin)
+	await message.answer("10) VIN:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.vin)
@@ -243,7 +295,7 @@ async def intake_vin(message: Message, state: FSMContext, storage: Storage) -> N
 		await storage.update_client_vin(client_id, vin)
 	await state.update_data(vin=vin)
 	await state.set_state(IntakeCarForm.plate)
-	await message.answer("7) Гос номер авто:", reply_markup=nav_kb("menu_root"))
+	await message.answer("11) Гос номер авто:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.plate)
@@ -255,7 +307,7 @@ async def intake_plate(message: Message, state: FSMContext, storage: Storage) ->
 		await storage.update_client_plate(client_id, plate)
 	await state.update_data(plate=plate)
 	await state.set_state(IntakeCarForm.sts)
-	await message.answer("8) СТС:", reply_markup=nav_kb("menu_root"))
+	await message.answer("12) СТС:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.sts)
@@ -267,7 +319,7 @@ async def intake_sts(message: Message, state: FSMContext, storage: Storage) -> N
 		await storage.update_client_sts(client_id, sts)
 	await state.update_data(sts=sts)
 	await state.set_state(IntakeCarForm.pts)
-	await message.answer("9) Номер ПТС:", reply_markup=nav_kb("menu_root"))
+	await message.answer("13) Номер ПТС:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.pts)
@@ -279,7 +331,7 @@ async def intake_pts(message: Message, state: FSMContext, storage: Storage) -> N
         await storage.update_client_pts(client_id, pts)
     await state.update_data(pts=pts)
     await state.set_state(IntakeCarForm.reason)
-    await message.answer("10) Причина обращения:", reply_markup=nav_kb("menu_root"))
+    await message.answer("14) Причина обращения:", reply_markup=nav_kb("menu_root"))
 
 
 @router.message(IntakeCarForm.reason)
@@ -299,6 +351,10 @@ async def intake_reason(message: Message, state: FSMContext, storage: Storage) -
 		f"Авто: {data.get('car_make_model','')}\n"
 		f"Год: {data.get('year','')}\n"
 		f"Пробег: {data.get('mileage','')}\n"
+		f"Тип кузова: {data.get('body_type','')}\n"
+		f"Цвет: {data.get('color','')}\n"
+		f"Номер двигателя: {data.get('engine_number','')}\n"
+		f"Класс: {data.get('car_class','')}\n"
 		f"VIN: {data.get('vin','')}\n"
 		f"Гос номер: {data.get('plate','')}\n"
 		f"СТС: {data.get('sts','')}\n"

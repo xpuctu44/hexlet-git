@@ -63,6 +63,10 @@ class Storage:
 					car_make_model TEXT,
 					year INTEGER,
 					mileage INTEGER,
+					body_type TEXT,
+					color TEXT,
+					engine_number TEXT,
+					car_class TEXT,
 					vin TEXT,
 					plate TEXT,
 					sts TEXT,
@@ -82,6 +86,23 @@ class Storage:
 			# Ensure mileage column exists
 			try:
 				await db.execute("ALTER TABLE clients ADD COLUMN mileage INTEGER")
+			except Exception:
+				pass
+			# Ensure new vehicle detail columns exist
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN body_type TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN color TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN engine_number TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN car_class TEXT")
 			except Exception:
 				pass
 			# Ensure pts column exists
@@ -416,7 +437,7 @@ class Storage:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT client_id, full_name, phone, car_make_model, year, mileage, vin, plate, sts, pts, reason, balance
+				SELECT client_id, full_name, phone, car_make_model, year, mileage, body_type, color, engine_number, car_class, vin, plate, sts, pts, reason, balance
 				FROM clients WHERE client_id=?
 				""",
 				(client_id,),
@@ -431,12 +452,16 @@ class Storage:
 				"car_make_model": row[3],
 				"year": row[4],
 				"mileage": row[5],
-				"vin": row[6],
-				"plate": row[7],
-				"sts": row[8],
-				"pts": row[9],
-				"reason": row[10],
-				"balance": row[11],
+				"body_type": row[6],
+				"color": row[7],
+				"engine_number": row[8],
+				"car_class": row[9],
+				"vin": row[10],
+				"plate": row[11],
+				"sts": row[12],
+				"pts": row[13],
+				"reason": row[14],
+				"balance": row[15],
 			}
 
 	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -460,6 +485,42 @@ class Storage:
 				}
 				for r in rows
 			]
+
+	async def update_client_body_type(self, client_id: int, body_type: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET body_type=?, updated_at=? WHERE client_id=?",
+				(body_type, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_color(self, client_id: int, color: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET color=?, updated_at=? WHERE client_id=?",
+				(color, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_engine_number(self, client_id: int, engine_number: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET engine_number=?, updated_at=? WHERE client_id=?",
+				(engine_number, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_car_class(self, client_id: int, car_class: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET car_class=?, updated_at=? WHERE client_id=?",
+				(car_class, now, client_id),
+			)
+			await db.commit()
 
 	async def update_client_mileage(self, client_id: int, mileage: int) -> None:
 		now = datetime.utcnow().isoformat()
