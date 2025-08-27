@@ -150,7 +150,7 @@ def generate_order_pdf(
 	# Station info and order meta
 	meta_table = Table([
 		[
-			_P(f"Станция тех. обслуживания<br/>Телефон: {station_phone}", styleN),
+			_P(f"Станция тех. обслуживания<br/>Телефон: {station_phone}<br/>Адрес: г.Севастополь, Камышовое шоссе 6", styleN),
 			_P("Вид ремонта: техническое обслуживание", styleN),
 		],
 		[
