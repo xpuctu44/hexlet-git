@@ -193,7 +193,7 @@ def generate_order_pdf(
 
 	# Signatures
 	sig = Table([
-		[_P("Исполнитель: ____________ / Даниил", styleN), _P("Заказчик: ____________ / ", styleN)],
+		[_P("Исполнитель: ____________ / Даниил", styleN), _P(f"Заказчик: ____________ / {customer.get('full_name','')}", styleN)],
 	])
 	sig.setStyle(TableStyle([
 		("VALIGN", (0,0), (-1,-1), "TOP"),
