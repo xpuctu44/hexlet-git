@@ -663,3 +663,18 @@ class Storage:
 			await db.execute("DELETE FROM payments WHERE payment_id=?", (payment_id,))
 			await db.commit()
 			return client_id, float(amount)
+
+	async def delete_client(self, client_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			# Find vehicles for this client
+			cur = await db.execute("SELECT vehicle_id FROM vehicles WHERE client_id=?", (client_id,))
+			vehicle_ids = [r[0] for r in await cur.fetchall()]
+			# Delete dependent records
+			for vid in vehicle_ids:
+				await db.execute("DELETE FROM parts WHERE vehicle_id=?", (vid,))
+				await db.execute("DELETE FROM jobs WHERE vehicle_id=?", (vid,))
+				await db.execute("DELETE FROM orders WHERE vehicle_id=?", (vid,))
+			await db.execute("DELETE FROM vehicles WHERE client_id=?", (client_id,))
+			await db.execute("DELETE FROM payments WHERE client_id=?", (client_id,))
+			await db.execute("DELETE FROM clients WHERE client_id=?", (client_id,))
+			await db.commit()

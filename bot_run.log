@@ -2520,3 +2520,14 @@ INFO:aiogram.event:Update id=271285099 is handled. Duration 197 ms by bot id=831
 INFO:aiogram.event:Update id=271285100 is handled. Duration 388 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285101 is handled. Duration 222 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285102 is handled. Duration 217 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/bot/main.py", line 10, in <module>
+    from .handlers import router as handlers_router
+  File "/workspace/bot/handlers.py", line 129
+    	if not rows:
+TabError: inconsistent use of tabs and spaces in indentation

@@ -114,6 +114,35 @@ async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext) -> None
 	await callback.answer()
 
 
+@router.callback_query(F.data == "clientdelmenu")
+async def cb_client_delete_menu(callback: CallbackQuery, storage: Storage) -> None:
+	clients = await storage.list_clients(limit=100)
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	rows = []
+	for c in clients:
+		rows.append([
+ 			InlineKeyboardButton(
+ 				text=f"#{c['client_id']} {c['full_name']}",
+ 				callback_data=f"clientdel:{c['client_id']}"
+ 			)
+ 		])
+ 	if not rows:
+ 		await callback.message.edit_text("Клиентов для удаления нет.", reply_markup=nav_kb("menu_clients"))
+ 		await callback.answer()
+ 		return
+ 	rows.append([InlineKeyboardButton(text="⬅️ Назад к клиентам", callback_data="menu_clients")])
+ 	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+ 	await callback.message.edit_text("Выберите клиента для удаления:", reply_markup=kb)
+ 	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("clientdel:"))
+async def cb_client_delete(callback: CallbackQuery, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+ 	await storage.delete_client(client_id)
+ 	await callback.message.edit_text("Клиент удалён.", reply_markup=nav_kb("menu_clients"))
+ 	await callback.answer("Удалено")
+
 @router.message(IntakeCarForm.full_name)
 async def intake_full_name(message: Message, state: FSMContext, storage: Storage) -> None:
 	full_name = (message.text or "").strip()
@@ -642,6 +671,7 @@ async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
 				callback_data=f"client:{c['client_id']}"
 			)
 		])
+	rows.append([InlineKeyboardButton(text="🗑️ Удалить клиента", callback_data="clientdelmenu")])
 	rows.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")])
 	kb = InlineKeyboardMarkup(inline_keyboard=rows)
 	await callback.message.edit_text("Клиенты:", reply_markup=kb)
@@ -666,6 +696,7 @@ async def cb_client_detail(callback: CallbackQuery, storage: Storage) -> None:
 			[InlineKeyboardButton(text="Добавить оплату", callback_data=f"payadd:{client_id}")],
 			[InlineKeyboardButton(text="Удалить оплату", callback_data=f"paydel:{client_id}")],
 			[InlineKeyboardButton(text="История платежей", callback_data=f"payhist:{client_id}")],
+			[InlineKeyboardButton(text="Удалить клиента", callback_data=f"clientdelmenu")],
 			[InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="menu_clients"), InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
 		]
 	)
