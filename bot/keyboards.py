@@ -1,6 +1,51 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
+def user_type_selection_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="Админ", callback_data="select_admin"),
+			],
+			[
+				InlineKeyboardButton(text="Клиент", callback_data="select_client"),
+			],
+		]
+	)
+
+
+def admin_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="Подключить ChatGPT", callback_data="menu_connect_openai"),
+			],
+			[
+				InlineKeyboardButton(text="Клиенты", callback_data="menu_clients"),
+			],
+			[
+				InlineKeyboardButton(text="Принять машину в ремонт", callback_data="menu_accept_car"),
+			],
+			[
+				InlineKeyboardButton(text="Гараж", callback_data="menu_garage"),
+			],
+			[
+				InlineKeyboardButton(text="Создать заказ-наряд", callback_data="menu_create_order"),
+			],
+		]
+	)
+
+
+def client_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root"),
+			],
+		]
+	)
+
+
 def main_menu_kb() -> InlineKeyboardMarkup:
 	return InlineKeyboardMarkup(
 		inline_keyboard=[

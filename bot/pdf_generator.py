@@ -11,50 +11,6 @@ from typing import List, Dict, Any
 import os
 
 
-_DEF_FONT = "DejaVuSans"
-_DEF_FONT_BOLD = "DejaVuSans-Bold"
-
-
-def _register_cyr_fonts() -> None:
-	if _DEF_FONT in pdfmetrics.getRegisteredFontNames():
-		return
-	# Try common paths for DejaVuSans
-	candidates = [
-		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-		"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-	]
-	regular_path = None
-	bold_path = None
-	for path in candidates:
-		if path.endswith("DejaVuSans.ttf") and os.path.exists(path):
-			regular_path = path
-		if path.endswith("DejaVuSans-Bold.ttf") and os.path.exists(path):
-			bold_path = path
-	# Fallback: look in same dir (if user provided fonts there)
-	local_reg = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
-	local_bold = os.path.join(os.path.dirname(__file__), "DejaVuSans-Bold.ttf")
-	if not regular_path and os.path.exists(local_reg):
-		regular_path = local_reg
-	if not bold_path and os.path.exists(local_bold):
-		bold_path = local_bold
-	# Register at least regular
-	if regular_path:
-		pdfmetrics.registerFont(TTFont(_DEF_FONT, regular_path))
-	else:
-		# As a last resort, try to register FreeSans if present
-		free_sans = "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
-		if os.path.exists(free_sans):
-			pdfmetrics.registerFont(TTFont(_DEF_FONT, free_sans))
-		else:
-			# If we cannot register, keep defaults; but Cyrillic may still fail
-			return
-	if bold_path:
-		pdfmetrics.registerFont(TTFont(_DEF_FONT_BOLD, bold_path))
-	else:
-		# If bold missing, alias bold to regular
-		pdfmetrics.registerFont(TTFont(_DEF_FONT_BOLD, regular_path))
-
-
 def _rub_text(amount: float) -> str:
 	amount = round(float(amount), 2)
 	rub = int(amount)
@@ -65,6 +21,45 @@ def _rub_text(amount: float) -> str:
 
 def _P(text: Any, style: ParagraphStyle) -> Paragraph:
 	return Paragraph(str(text), style)
+
+
+def _register_cyrillic_font():
+	"""Register a Cyrillic-compatible font for PDF generation"""
+	try:
+		# Try to register Arial Unicode MS if available (common on Windows)
+		pdfmetrics.registerFont(TTFont('ArialUnicode', 'arialuni.ttf'))
+		return 'ArialUnicode'
+	except:
+		try:
+			# Try to register Times New Roman if available
+			pdfmetrics.registerFont(TTFont('TimesNewRoman', 'times.ttf'))
+			return 'TimesNewRoman'
+		except:
+			try:
+				# Try to register Arial if available
+				pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+				return 'Arial'
+			except:
+				# Fallback to default fonts but with encoding specification
+				return None
+
+
+def _get_cyrillic_style(base_style, font_name=None):
+	"""Get a style with Cyrillic support"""
+	if font_name:
+		style = ParagraphStyle(
+			name=base_style.name + 'Cyrillic',
+			parent=base_style,
+			fontName=font_name,
+			encoding='utf-8'
+		)
+	else:
+		style = ParagraphStyle(
+			name=base_style.name + 'Cyrillic',
+			parent=base_style,
+			encoding='utf-8'
+		)
+	return style
 
 
 def _brand_logo_images() -> list:
@@ -118,35 +113,53 @@ def generate_order_pdf(
 	station_phone: str = "+79782091007",
 	executor_name: str = "Даниил",
 ) -> None:
-	_register_cyr_fonts()
+	# Register Cyrillic font
+	cyrillic_font = _register_cyrillic_font()
+
+	# Get base styles
 	styles = getSampleStyleSheet()
-	# Clone and set Cyrillic-capable fonts
-	styleN = ParagraphStyle("CyrNormal", parent=styles["Normal"], fontName=_DEF_FONT, fontSize=10, leading=12)
-	styleB = ParagraphStyle("CyrBold", parent=styles["Heading3"], fontName=_DEF_FONT_BOLD, fontSize=11, leading=13)
-	styleTitle = ParagraphStyle("CyrTitle", parent=styles["Title"], fontName=_DEF_FONT_BOLD)
-	styleH1 = ParagraphStyle("CyrH1", parent=styles["Heading1"], fontName=_DEF_FONT_BOLD)
-	styleH2 = ParagraphStyle("CyrH2", parent=styles["Heading2"], fontName=_DEF_FONT_BOLD)
+
+	# Create Cyrillic-compatible styles
+	if cyrillic_font:
+		styleN = _get_cyrillic_style(styles["Normal"], cyrillic_font)
+		styleB = _get_cyrillic_style(styles["Heading3"], cyrillic_font)
+		styleTitle = _get_cyrillic_style(styles["Title"], cyrillic_font)
+		styleH1 = _get_cyrillic_style(styles["Heading1"], cyrillic_font)
+		styleH2 = _get_cyrillic_style(styles["Heading2"], cyrillic_font)
+	else:
+		# Fallback to default styles with UTF-8 encoding
+		styleN = _get_cyrillic_style(styles["Normal"])
+		styleB = _get_cyrillic_style(styles["Heading3"])
+		styleTitle = _get_cyrillic_style(styles["Title"])
+		styleH1 = _get_cyrillic_style(styles["Heading1"])
+		styleH2 = _get_cyrillic_style(styles["Heading2"])
 
 	doc = SimpleDocTemplate(output_path, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
 	story = []
 
-	# Header with VAG logos (images if available, fallback to text)
-	logo_imgs = _brand_logo_images()
-	if logo_imgs:
-		# arrange in a single-row table
-		cells = [[img for img in logo_imgs]]
-		logo_table = Table(cells)
-		logo_table.setStyle(TableStyle([
-			("ALIGN", (0,0), (-1,-1), "CENTER"),
-			("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-			("LEFTPADDING", (0,0), (-1,-1), 2),
-			("RIGHTPADDING", (0,0), (-1,-1), 2),
-		]))
-		story.append(logo_table)
-	else:
-		header = _P("VAG Group: Audi · Volkswagen · Skoda · SEAT · Porsche", styleTitle)
+	try:
+		# Header with VAG logos (images if available, fallback to text)
+		logo_imgs = _brand_logo_images()
+		if logo_imgs:
+			# arrange in a single-row table
+			cells = [[img for img in logo_imgs]]
+			logo_table = Table(cells)
+			logo_table.setStyle(TableStyle([
+				("ALIGN", (0,0), (-1,-1), "CENTER"),
+				("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+				("LEFTPADDING", (0,0), (-1,-1), 2),
+				("RIGHTPADDING", (0,0), (-1,-1), 2),
+			]))
+			story.append(logo_table)
+		else:
+			header = _P("VAG Group: Audi · Volkswagen · Skoda · SEAT · Porsche", styleTitle)
+			story.append(header)
+		story.append(Spacer(1, 4*mm))
+	except Exception as logo_error:
+		print(f"Logo loading failed: {logo_error}, skipping logos")
+		header = _P("VAG Service Station", styleTitle)
 		story.append(header)
-	story.append(Spacer(1, 4*mm))
+		story.append(Spacer(1, 4*mm))
 
 	# Station info and order meta
 	accepted_dt_text = ""
@@ -283,4 +296,34 @@ def generate_order_pdf(
 	]))
 	story.append(sig)
 
-	doc.build(story)
+	try:
+		doc.build(story)
+		print(f"PDF generated successfully: {output_path}")
+	except Exception as build_error:
+		print(f"PDF build failed: {build_error}")
+		# Try to create a simple PDF as fallback
+		try:
+			simple_doc = SimpleDocTemplate(output_path, pagesize=A4)
+			simple_styles = getSampleStyleSheet()
+			simple_story = []
+
+			simple_story.append(Paragraph(f"Order #{order_number}", simple_styles['Title']))
+			simple_story.append(Paragraph(f"Customer: {customer.get('full_name', 'N/A')}", simple_styles['Normal']))
+			simple_story.append(Paragraph(f"Phone: {customer.get('phone', 'N/A')}", simple_styles['Normal']))
+			simple_story.append(Paragraph(f"Vehicle: {vehicle.get('car_make_model', 'N/A')}", simple_styles['Normal']))
+
+			if works:
+				simple_story.append(Paragraph("Works:", simple_styles['Heading2']))
+				for work in works:
+					simple_story.append(Paragraph(f"- {work.get('name', '')}: {work.get('price', 0)} RUB", simple_styles['Normal']))
+
+			if parts:
+				simple_story.append(Paragraph("Parts:", simple_styles['Heading2']))
+				for part in parts:
+					simple_story.append(Paragraph(f"- {part.get('name', '')}: {part.get('price', 0)} RUB", simple_styles['Normal']))
+
+			simple_doc.build(simple_story)
+			print("Created simple fallback PDF")
+		except Exception as fallback_error:
+			print(f"Even fallback PDF failed: {fallback_error}")
+			raise build_error

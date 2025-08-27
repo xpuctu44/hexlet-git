@@ -1,14 +1,14 @@
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove, FSInputFile
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
-from .keyboards import main_menu_kb, back_to_menu_kb, meals_complexity_kb, nav_kb
+from .keyboards import main_menu_kb, admin_menu_kb, client_menu_kb, user_type_selection_kb, back_to_menu_kb, meals_complexity_kb, nav_kb
 from .storage import Storage
 from .openai_client import make_meals_text, make_workout_text
 from .pdf_generator import generate_order_pdf
@@ -23,11 +23,10 @@ def _format_duration_since(created_at_iso: str) -> str:
 		started = datetime.fromisoformat(created_at_iso)
 	except Exception:
 		return "?"
-	# Normalize timezone handling
-	if started.tzinfo is None:
-		now = datetime.utcnow()
-	else:
-		now = datetime.now(started.tzinfo)
+	# Normalize timezone handling - make both datetimes naive
+	if started.tzinfo is not None:
+		started = started.replace(tzinfo=None)
+	now = datetime.utcnow()
 	delta = now - started
 	days = delta.days
 	hours = delta.seconds // 3600
@@ -81,6 +80,27 @@ class AddPaymentForm(StatesGroup):
 	amount = State()
 
 
+class UserTypeSelection(StatesGroup):
+	waiting_for_type = State()
+
+
+class AdminPasswordForm(StatesGroup):
+	password = State()
+
+
+class ClientRegistrationForm(StatesGroup):
+	full_name = State()
+	phone = State()
+	car_make_model = State()
+
+
+class AdminReplyForm(StatesGroup):
+	client_tg_id = State()
+	client_id = State()
+
+
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> None:
 	await storage.upsert_user(
@@ -89,19 +109,685 @@ async def cmd_start(message: Message, state: FSMContext, storage: Storage) -> No
 		username=message.from_user.username,
 	)
 	await state.clear()
-	# Directly show main menu (avoid sending empty text)
+
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if user and user.get("role") and user["role"] in ["admin", "client"]:
+		# User already has a role, show appropriate menu
+		if user["role"] == "admin":
+			await message.answer(
+				"Привет, Админ! Выберите раздел меню:",
+				reply_markup=admin_menu_kb(),
+			)
+		else:  # client
+			# Check if client has completed registration (has client_id)
+			if user.get("client_id"):
+				await message.answer(
+					"Привет! Выберите действие:",
+					reply_markup=client_menu_kb(),
+				)
+			else:
+				# Client role but no client_id - needs to complete registration
+				await message.answer(
+					"Регистрация не завершена. Выберите тип пользователя:",
+					reply_markup=user_type_selection_kb(),
+				)
+	else:
+		# New user or user without role, show type selection
+		await message.answer(
+			"Привет! Выберите тип пользователя:",
+			reply_markup=user_type_selection_kb(),
+		)
+
+
+@router.callback_query(F.data == "select_admin")
+async def cb_select_admin(callback: CallbackQuery, state: FSMContext) -> None:
+	await state.set_state(AdminPasswordForm.password)
+	await callback.message.edit_text(
+		"Введите пароль администратора:",
+		reply_markup=nav_kb("menu_root"),
+	)
+	await callback.answer()
+
+
+@router.callback_query(F.data == "select_client")
+async def cb_select_client(callback: CallbackQuery, state: FSMContext) -> None:
+	await state.set_state(ClientRegistrationForm.full_name)
+	await callback.message.edit_text(
+		"Регистрация клиента.\n\n1) Введите ваше ФИО:",
+		reply_markup=nav_kb("menu_root"),
+	)
+	await callback.answer()
+
+
+@router.message(AdminPasswordForm.password)
+async def process_admin_password(message: Message, state: FSMContext, storage: Storage) -> None:
+	password = (message.text or "").strip()
+	if password == "481004":
+		await storage.set_user_role(message.from_user.id, "admin")
+		await state.clear()
+		await message.answer("Пароль верный! Добро пожаловать, Админ.", reply_markup=admin_menu_kb())
+	else:
+		await message.answer("Неверный пароль. Попробуйте ещё раз:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(ClientRegistrationForm.full_name)
+async def client_reg_full_name(message: Message, state: FSMContext) -> None:
+	full_name = (message.text or "").strip()
+	if not full_name:
+		await message.answer("Пожалуйста, укажите ФИО.")
+		return
+	await state.update_data(full_name=full_name)
+	await state.set_state(ClientRegistrationForm.phone)
+	await message.answer("2) Введите ваш номер телефона:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(ClientRegistrationForm.phone)
+async def client_reg_phone(message: Message, state: FSMContext) -> None:
+	phone = (message.text or "").strip()
+	if not phone:
+		await message.answer("Пожалуйста, укажите номер телефона.")
+		return
+	await state.update_data(phone=phone)
+	await state.set_state(ClientRegistrationForm.car_make_model)
+	await message.answer("3) Введите марку и модель вашего автомобиля:", reply_markup=nav_kb("menu_root"))
+
+
+@router.message(ClientRegistrationForm.car_make_model)
+async def client_reg_car(message: Message, state: FSMContext, storage: Storage) -> None:
+	car = (message.text or "").strip()
+	if not car:
+		await message.answer("Пожалуйста, укажите марку и модель автомобиля.")
+		return
+
+	data = await state.get_data()
+	full_name = data.get("full_name")
+	phone = data.get("phone")
+
+	# Create client account
+	client_id = await storage.create_bot_client(
+		tg_user_id=message.from_user.id,
+		full_name=full_name,
+		phone=phone,
+		car_make_model=car
+	)
+
+	# Set user role to client
+	await storage.set_user_role(message.from_user.id, "client")
+
+	await state.clear()
 	await message.answer(
-		"Привет! Выберите раздел меню:",
-		reply_markup=main_menu_kb(),
+		f"Регистрация завершена! Ваш ID: {client_id}\n\nТеперь вы можете просто писать сообщения боту - они автоматически отправятся мастеру.",
+		reply_markup=client_menu_kb()
+	)
+
+
+
+
+# Admin ID for direct message forwarding
+ADMIN_ID = 79417807
+
+
+@router.message(F.text)
+async def handle_client_text_messages(message: Message, storage: Storage, bot: Bot) -> None:
+	# Check if user is a client
+	user = await storage.get_user_by_tg(message.from_user.id)
+
+	if not user or user.get("role") != "client" or not user.get("client_id"):
+		return  # Not a client or not registered, let other handlers process
+
+	text = (message.text or "").strip()
+	if not text:
+		return
+
+	# Don't process commands
+	if text.startswith("/"):
+		return
+
+	# Get client info
+	client_info = await storage.get_client(user["client_id"])
+	client_name = client_info["full_name"] if client_info else "Неизвестный клиент"
+
+	# Forward message to admin with reply button
+	try:
+		from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+		kb = InlineKeyboardMarkup(
+			inline_keyboard=[
+				[InlineKeyboardButton(text="💬 Ответить клиенту", callback_data=f"reply_to_client:{user['tg_user_id']}:{user['client_id']}")],
+			]
+		)
+
+		await bot.send_message(
+			chat_id=ADMIN_ID,
+			text=f"📨 <b>Сообщение от клиента</b>\n\n"
+				 f"👤 <b>{client_name}</b>\n"
+				 f"🚗 {client_info.get('car_make_model', 'Не указано') if client_info else 'Не указано'}\n\n"
+				 f"💬 <i>{text}</i>",
+			reply_markup=kb,
+			parse_mode="HTML"
+		)
+	except Exception as e:
+		print(f"Error forwarding message to admin: {e}")
+
+	# Client gets a simple confirmation
+	await message.answer("✅ Ваше сообщение отправлено мастеру!")
+
+
+@router.callback_query(F.data.startswith("reply_to_client:"))
+async def cb_reply_to_client(callback: CallbackQuery, state: FSMContext) -> None:
+	# Format: reply_to_client:{client_tg_id}:{client_id}
+	parts = callback.data.split(":", 2)
+	if len(parts) != 3:
+		await callback.answer("Ошибка в данных")
+		return
+
+	client_tg_id = int(parts[1])
+	client_id = int(parts[2])
+
+	await state.set_state(AdminReplyForm.client_tg_id)
+	await state.update_data(client_tg_id=client_tg_id, client_id=client_id)
+
+	await callback.message.edit_text(
+		f"💬 Введите ответ для клиента (ID: {client_id}):",
+		reply_markup=None
+	)
+	await callback.answer()
+
+
+@router.message(AdminReplyForm.client_tg_id)
+async def admin_send_reply_to_client(message: Message, state: FSMContext, storage: Storage, bot: Bot) -> None:
+	data = await state.get_data()
+	client_tg_id = data.get("client_tg_id")
+	client_id = data.get("client_id")
+	reply_text = (message.text or "").strip()
+
+	if not reply_text:
+		await message.answer("Ответ не может быть пустым.")
+		return
+
+	# Format as command and process internally
+	command_text = f"/reply {client_tg_id} {reply_text}"
+
+	# Simulate command processing
+	await state.clear()
+
+	# Process the reply command
+	await process_reply_command(message, command_text, storage, bot)
+
+
+async def process_reply_command(message: Message, command_text: str, storage: Storage, bot: Bot) -> None:
+	"""Process /reply command internally"""
+	try:
+		parts = command_text.split(" ", 2)
+		if len(parts) < 3:
+			await message.answer("Неверный формат команды. Используйте: /reply <user_id> <message>")
+			return
+
+		command = parts[0]
+		client_tg_id = int(parts[1])
+		reply_text = parts[2]
+
+		# Verify admin permissions
+		user = await storage.get_user_by_tg(message.from_user.id)
+		if not user or user.get("role") != "admin":
+			await message.answer("У вас нет прав для выполнения этой команды.")
+			return
+
+		# Send message to client (appears as regular bot message)
+		try:
+			await bot.send_message(
+				chat_id=client_tg_id,
+				text=reply_text
+			)
+		except Exception as e:
+			await message.answer(f"Ошибка отправки сообщения: {str(e)}")
+			return
+
+		# Save message in database
+		client_user = await storage.get_user_by_tg(client_tg_id)
+		if client_user and client_user.get("client_id"):
+			await storage.send_message(
+				from_user_id=user["user_id"],
+				to_user_id=client_tg_id,
+				client_id=client_user["client_id"],
+				message_text=reply_text
+			)
+
+		await message.answer("✅ Ответ отправлен клиенту!")
+
+	except ValueError:
+		await message.answer("Неверный формат user_id.")
+	except Exception as e:
+		await message.answer(f"Ошибка обработки команды: {str(e)}")
+
+
+# Also add explicit command handler for manual use
+@router.message(F.text.startswith("/reply "))
+async def cmd_reply(message: Message, storage: Storage, bot: Bot) -> None:
+	command_text = message.text
+	await process_reply_command(message, command_text, storage, bot)
+
+
+@router.callback_query(F.data == "menu_client_chat")
+async def cb_menu_client_chat(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
+	messages = await storage.get_messages_for_admin()
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+	if not messages:
+		await callback.message.edit_text("Нет новых сообщений от клиентов.", reply_markup=nav_kb("menu_root"))
+		await callback.answer()
+		return
+
+	rows = []
+	for msg in messages:
+		status = "✅" if msg["is_read"] else "🆕"
+		rows.append([
+			InlineKeyboardButton(
+				text=f"{status} #{msg['client_id']} {msg['client_name']} - {msg['client_car']}",
+				callback_data=f"view_client_chat:{msg['client_id']}"
+			)
+		])
+
+	rows.append([InlineKeyboardButton(text="⬅️ Назад к меню", callback_data="menu_root")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Чат с клиентами:", reply_markup=kb)
+	await callback.answer()
+
+
+@router.callback_query(F.data.startswith("view_client_chat:"))
+async def cb_view_client_chat(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
+	client_id = int(callback.data.split(":", 1)[1])
+	messages = await storage.get_messages_for_client(client_id)
+
+	if not messages:
+		await callback.message.edit_text("Нет сообщений от этого клиента.", reply_markup=nav_kb("menu_client_chat"))
+		await callback.answer()
+		return
+
+	# Mark messages as read
+	for msg in messages:
+		if not msg.get("is_read", True):
+			await storage.mark_message_read(msg["message_id"])
+
+	# Format chat history
+	chat_text = f"Чат с клиентом #{client_id}:\n\n"
+	for msg in messages:
+		timestamp = msg["created_at"][:19].replace("T", " ")
+		if msg["from_role"] == "client":
+			chat_text += f"Клиент: {msg['message_text']}\n({timestamp})\n\n"
+		else:
+			chat_text += f"Админ: {msg['message_text']}\n({timestamp})\n\n"
+
+	# Set state for direct messaging
+	await state.set_state(AdminReplyForm.reply_text)
+	await state.update_data(client_id=client_id)
+
+	chat_text += "\n💬 Напишите ваш ответ клиенту (или нажмите кнопку ниже):"
+
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="⬅️ Назад к чатам", callback_data="menu_client_chat")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+
+	await callback.message.edit_text(chat_text, reply_markup=kb)
+	await callback.answer()
+
+
+class AdminReplyForm(StatesGroup):
+	client_id = State()
+	reply_text = State()
+
+
+@router.message(AdminReplyForm.reply_text)
+async def admin_send_reply(message: Message, state: FSMContext, storage: Storage, bot: Bot) -> None:
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user or user.get("role") != "admin":
+		await message.answer("Ошибка: доступ запрещен.")
+		await state.clear()
+		return
+
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	reply_text = (message.text or "").strip()
+
+	if not reply_text:
+		await message.answer("Ответ не может быть пустым.")
+		return
+
+	# Get client chat information
+	client_info = await storage.get_client_chat_info(client_id)
+	if not client_info:
+		await message.answer("Ошибка: клиент не найден или не является бот-клиентом.")
+		await state.clear()
+		return
+
+	# Send message to client via Telegram
+	try:
+		await bot.send_message(
+			chat_id=client_info["chat_id"],
+			text=f"📨 Сообщение от мастера:\n\n{reply_text}"
+		)
+	except Exception as e:
+		await message.answer(f"Ошибка отправки сообщения: {str(e)}")
+		await state.clear()
+		return
+
+	# Save message in database
+	await storage.send_message(
+		from_user_id=user["user_id"],
+		to_user_id=client_info["tg_user_id"],
+		client_id=client_id,
+		message_text=reply_text
+	)
+
+	await state.clear()
+
+	# Show confirmation and return to chat menu
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="💬 Ответить ещё", callback_data=f"view_client_chat:{client_id}")],
+			[InlineKeyboardButton(text="⬅️ Назад к чатам", callback_data="menu_client_chat")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+
+	await message.answer("✅ Сообщение отправлено!", reply_markup=kb)
+
+
+
+
+@router.callback_query(F.data.startswith("view_client_chat:"))
+async def cb_view_client_chat(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	messages = await storage.get_messages_for_client(client_id)
+
+	if not messages:
+		await callback.message.edit_text("Нет сообщений от этого клиента.", reply_markup=nav_kb("menu_client_chat"))
+		await callback.answer()
+		return
+
+	# Mark messages as read
+	for msg in messages:
+		if not msg.get("is_read", True):
+			await storage.mark_message_read(msg["message_id"])
+
+	# Format chat history
+	chat_text = f"Чат с клиентом #{client_id}:\n\n"
+	for msg in messages:
+		timestamp = msg["created_at"][:19].replace("T", " ")
+		if msg["from_role"] == "client":
+			chat_text += f"Клиент: {msg['message_text']}\n({timestamp})\n\n"
+		else:
+			chat_text += f"Админ: {msg['message_text']}\n({timestamp})\n\n"
+
+	# Set state for direct messaging
+	await state.set_state(AdminReplyForm.reply_text)
+	await state.update_data(client_id=client_id)
+
+	chat_text += "\n💬 Напишите ваш ответ клиенту (или нажмите кнопку ниже):"
+
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="⬅️ Назад к чатам", callback_data="menu_client_chat")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+
+	await callback.message.edit_text(chat_text, reply_markup=kb)
+	await callback.answer()
+
+
+class AdminReplyForm(StatesGroup):
+	client_id = State()
+	reply_text = State()
+
+
+
+
+@router.message(AdminReplyForm.reply_text)
+async def admin_send_reply(message: Message, state: FSMContext, storage: Storage, bot: Bot) -> None:
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user or user.get("role") != "admin":
+		await message.answer("Ошибка: доступ запрещен.")
+		await state.clear()
+		return
+
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	reply_text = (message.text or "").strip()
+
+	if not reply_text:
+		await message.answer("Ответ не может быть пустым.")
+		return
+
+	# Get client chat information
+	client_info = await storage.get_client_chat_info(client_id)
+	if not client_info:
+		await message.answer("Ошибка: клиент не найден или не является бот-клиентом.")
+		await state.clear()
+		return
+
+	# Send message to client via Telegram
+	try:
+		await bot.send_message(
+			chat_id=client_info["chat_id"],
+			text=f"📨 Сообщение от мастера:\n\n{reply_text}"
+		)
+	except Exception as e:
+		await message.answer(f"Ошибка отправки сообщения: {str(e)}")
+		await state.clear()
+		return
+
+	# Save message in database
+	await storage.send_message(
+		from_user_id=user["user_id"],
+		to_user_id=client_info["tg_user_id"],
+		client_id=client_id,
+		message_text=reply_text
+	)
+
+	# Refresh chat view with new message
+	messages = await storage.get_messages_for_client(client_id)
+
+	# Format updated chat history
+	chat_text = f"Чат с клиентом #{client_id}:\n\n"
+	for msg in messages:
+		timestamp = msg["created_at"][:19].replace("T", " ")
+		if msg["from_role"] == "client":
+			chat_text += f"Клиент: {msg['message_text']}\n({timestamp})\n\n"
+		else:
+			chat_text += f"Админ: {msg['message_text']}\n({timestamp})\n\n"
+
+	chat_text += "\n💬 Напишите ваш ответ клиенту (или нажмите кнопку ниже):"
+
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="⬅️ Назад к чатам", callback_data="menu_client_chat")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+
+	await message.answer("✅ Сообщение отправлено!", reply_markup=nav_kb("menu_client_chat"))
+	await message.answer(chat_text, reply_markup=kb)
+
+	# Keep the state active for continued messaging
+	await state.set_state(AdminReplyForm.reply_text)
+	await state.update_data(client_id=client_id)
+
+
+@router.callback_query(F.data == "menu_client_chat")
+async def cb_back_to_client_chat_menu(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	# Clear messaging state when going back to chat menu
+	await state.clear()
+	print("DEBUG: cb_back_to_client_chat_menu called")  # Debug log
+
+	messages = await storage.get_messages_for_admin()
+	print(f"DEBUG: cb_back_to_client_chat_menu found {len(messages)} messages")  # Debug log
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+	if not messages:
+		print("DEBUG: No messages found, showing empty message")  # Debug log
+		await callback.message.edit_text("Нет новых сообщений от клиентов.", reply_markup=nav_kb("menu_root"))
+		await callback.answer()
+		return
+
+	rows = []
+	for msg in messages:
+		status = "✅" if msg["is_read"] else "🆕"
+		rows.append([
+			InlineKeyboardButton(
+				text=f"{status} #{msg['client_id']} {msg['client_name']} - {msg['client_car']}",
+				callback_data=f"view_client_chat:{msg['client_id']}"
+			)
+		])
+		print(f"DEBUG: Added button for client {msg['client_id']} - {msg['client_name']}")  # Debug log
+
+	rows.append([InlineKeyboardButton(text="⬅️ Назад к меню", callback_data="menu_root")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Чат с клиентами:", reply_markup=kb)
+	await callback.answer()
+
+
+
+
+class AdminReplyForm(StatesGroup):
+	client_tg_id = State()
+	client_id = State()
+	reply_text = State()
+
+
+@router.callback_query(F.data.startswith("reply_client:"))
+async def cb_reply_client(callback: CallbackQuery, state: FSMContext) -> None:
+	client_id = int(callback.data.split(":", 1)[1])
+	await state.set_state(AdminReplyForm.reply_text)
+	await state.update_data(client_id=client_id)
+	await callback.message.edit_text(
+		f"💬 Введите текст ответа для клиента #{client_id}:",
+		reply_markup=None
+	)
+	await callback.answer()
+
+
+@router.message(AdminReplyForm.reply_text)
+async def admin_send_reply(message: Message, state: FSMContext, storage: Storage, bot: Bot) -> None:
+	user = await storage.get_user_by_tg(message.from_user.id)
+	if not user or user.get("role") != "admin":
+		await message.answer("Ошибка: доступ запрещен.")
+		await state.clear()
+		return
+
+	data = await state.get_data()
+	client_id = data.get("client_id")
+	reply_text = (message.text or "").strip()
+
+	if not reply_text:
+		await message.answer("Ответ не может быть пустым.")
+		return
+
+	# Get client chat information
+	client_info = await storage.get_client_chat_info(client_id)
+	if not client_info:
+		await message.answer("Ошибка: клиент не найден или не является бот-клиентом.")
+		await state.clear()
+		return
+
+	# Send message to client via Telegram
+	try:
+		await bot.send_message(
+			chat_id=client_info["chat_id"],
+			text=f"📨 Сообщение от мастера:\n\n{reply_text}"
+		)
+	except Exception as e:
+		await message.answer(f"Ошибка отправки сообщения: {str(e)}")
+		await state.clear()
+		return
+
+	# Save message in database
+	await storage.send_message(
+		from_user_id=user["user_id"],
+		to_user_id=client_info["tg_user_id"],
+		client_id=client_id,
+		message_text=reply_text
+	)
+
+	await state.clear()
+
+	# Show confirmation and updated chat
+	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+	kb = InlineKeyboardMarkup(
+		inline_keyboard=[
+			[InlineKeyboardButton(text="💬 Ответить ещё", callback_data=f"reply_client:{client_id}")],
+			[InlineKeyboardButton(text="⬅️ Назад к чатам", callback_data="menu_client_chat")],
+			[InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root")],
+		]
+	)
+
+	await message.answer("✅ Сообщение отправлено!", reply_markup=kb)
+
+
+@router.message(F.text == "/getmeadminstatus")
+async def cmd_getmeadminstatus(message: Message, state: FSMContext) -> None:
+	await state.set_state(AdminPasswordForm.password)
+	await message.answer("Введите пароль администратора:")
+
+
+@router.message(F.text == "/resetstatus")
+async def cmd_resetstatus(message: Message, storage: Storage) -> None:
+	await storage.reset_user_registration(message.from_user.id)
+	await message.answer(
+		"Ваша роль сброшена. Выберите тип пользователя:",
+		reply_markup=user_type_selection_kb(),
+	)
+
+
+@router.message(F.text == "/getmeadminstatus")
+async def cmd_getmeadminstatus(message: Message, state: FSMContext) -> None:
+	await state.set_state(AdminPasswordForm.password)
+	await message.answer("Введите пароль администратора:")
+
+
+@router.message(F.text == "/resetstatus")
+async def cmd_resetstatus(message: Message, storage: Storage) -> None:
+	await storage.reset_user_registration(message.from_user.id)
+	await message.answer(
+		"Ваша роль сброшена. Выберите тип пользователя:",
+		reply_markup=user_type_selection_kb(),
 	)
 
 
 @router.callback_query(F.data == "menu_root")
-async def cb_menu_root(callback: CallbackQuery) -> None:
+async def cb_menu_root(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if user and user.get("role") == "admin":
+		menu_kb = admin_menu_kb()
+		menu_text = "Главное меню (Админ):"
+	elif user and user.get("role") == "client" and user.get("client_id"):
+		menu_kb = client_menu_kb()
+		menu_text = "Главное меню (Клиент):"
+	else:
+		# User without proper registration
+		menu_kb = user_type_selection_kb()
+		menu_text = "Выберите тип пользователя:"
+
 	await callback.answer()
 	try:
 		await callback.message.edit_text(
-			"Главное меню:", reply_markup=main_menu_kb()
+			menu_text, reply_markup=menu_kb
 		)
 	except TelegramBadRequest as e:
 		if "message is not modified" in str(e):
@@ -110,7 +796,12 @@ async def cb_menu_root(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "menu_accept_car")
-async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext) -> None:
+async def cb_menu_accept_car(callback: CallbackQuery, state: FSMContext, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
 	await state.set_state(IntakeCarForm.full_name)
 	await callback.message.edit_text(
 		"Приём авто в ремонт.\n\n1) Введите ФИО клиента:",
@@ -386,6 +1077,11 @@ async def cb_put_in_garage(callback: CallbackQuery, state: FSMContext, storage: 
 
 @router.callback_query(F.data == "menu_garage")
 async def cb_menu_garage(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
 	vehicles = await storage.list_garage()
 	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not vehicles:
@@ -747,6 +1443,11 @@ async def maybe_sleep_input(message: Message, storage: Storage) -> None:
 
 @router.callback_query(F.data == "menu_clients")
 async def cb_menu_clients(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
 	clients = await storage.list_clients()
 	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not clients:
@@ -879,6 +1580,11 @@ async def cb_pay_delete(callback: CallbackQuery, storage: Storage) -> None:
 
 @router.callback_query(F.data == "menu_create_order")
 async def cb_menu_create_order(callback: CallbackQuery, storage: Storage) -> None:
+	user = await storage.get_user_by_tg(callback.from_user.id)
+	if not user or user.get("role") != "admin":
+		await callback.answer("Доступ запрещен")
+		return
+
 	vehicles = await storage.list_garage()
 	from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 	if not vehicles:
@@ -936,18 +1642,25 @@ async def cb_make_order(callback: CallbackQuery, storage: Storage) -> None:
 	# Order number
 	order_number = await storage.create_order(vehicle_id)
 	# Generate PDF
-	orders_dir = "/workspace/orders"
-	os.makedirs(orders_dir, exist_ok=True)
-	pdf_path = os.path.join(orders_dir, f"order_{order_number}.pdf")
-	generate_order_pdf(
-		output_path=pdf_path,
-		order_number=order_number,
-		customer=customer,
-		vehicle=vehicle,
-		works=works_list,
-		parts=parts_list,
-		accepted_at_iso=vc.get("created_at", None),
-	)
-	# Send file
-	await callback.message.answer_document(FSInputFile(pdf_path), caption=f"Заказ-наряд № {order_number}")
-	await callback.answer("Сформировано")
+	try:
+		orders_dir = os.path.join(os.getcwd(), "orders")
+		os.makedirs(orders_dir, exist_ok=True)
+		pdf_path = os.path.join(orders_dir, f"order_{order_number}.pdf")
+
+		generate_order_pdf(
+			output_path=pdf_path,
+			order_number=order_number,
+			customer=customer,
+			vehicle=vehicle,
+			works=works_list,
+			parts=parts_list,
+			accepted_at_iso=vc.get("created_at", None),
+		)
+
+		# Send file
+		await callback.message.answer_document(FSInputFile(pdf_path), caption=f"Заказ-наряд № {order_number}")
+		await callback.answer("Сформировано")
+	except Exception as e:
+		print(f"DEBUG: PDF generation error: {e}")
+		await callback.message.answer(f"Ошибка при создании PDF: {str(e)}")
+		await callback.answer("Ошибка")

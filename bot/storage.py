@@ -53,6 +53,16 @@ class Storage:
 				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")
 			except Exception:
 				pass
+			# Add role column to users table
+			try:
+				await db.execute("ALTER TABLE users ADD COLUMN role TEXT")
+			except Exception:
+				pass
+			# Add client_id column to users table for linking bot users to clients
+			try:
+				await db.execute("ALTER TABLE users ADD COLUMN client_id INTEGER")
+			except Exception:
+				pass
 			# Clients table
 			await db.execute(
 				"""
@@ -73,6 +83,7 @@ class Storage:
 					pts TEXT,
 					reason TEXT,
 					balance REAL DEFAULT 0,
+					is_bot_client INTEGER DEFAULT 0,
 					created_at TEXT NOT NULL,
 					updated_at TEXT NOT NULL
 				);
@@ -110,6 +121,12 @@ class Storage:
 				await db.execute("ALTER TABLE clients ADD COLUMN pts TEXT")
 			except Exception:
 				pass
+			# Ensure is_bot_client column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN is_bot_client INTEGER DEFAULT 0")
+				print("DEBUG: Added is_bot_client column to clients table")  # Debug log
+			except Exception as e:
+				print(f"DEBUG: is_bot_client column already exists or error: {e}")  # Debug log
 			# Vehicles table for garage
 			await db.execute(
 				"""
@@ -179,6 +196,23 @@ class Storage:
 				);
 				"""
 			)
+			# Messages for chat between clients and admin
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS messages (
+					message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					from_user_id INTEGER NOT NULL,
+					to_user_id INTEGER,
+					client_id INTEGER,
+					message_text TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					is_read INTEGER DEFAULT 0,
+					FOREIGN KEY(from_user_id) REFERENCES users(user_id),
+					FOREIGN KEY(to_user_id) REFERENCES users(user_id),
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -211,7 +245,7 @@ class Storage:
 	async def get_user_by_tg(self, tg_user_id: int) -> Optional[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
-				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg, openai_api_key FROM users WHERE tg_user_id=?",
+				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg, openai_api_key, role, client_id FROM users WHERE tg_user_id=?",
 				(tg_user_id,),
 			)
 			row = await cursor.fetchone()
@@ -226,6 +260,8 @@ class Storage:
 				"weight_kg": row[5],
 				"desired_weight_kg": row[6],
 				"openai_api_key": row[7],
+				"role": row[8] or "client",
+				"client_id": row[9],
 			}
 
 	async def update_profile(self, user_id: int, height_cm: int, weight_kg: float) -> None:
@@ -443,7 +479,7 @@ class Storage:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT client_id, full_name, phone, car_make_model, year, mileage, body_type, color, engine_number, car_class, vin, plate, sts, pts, reason, balance
+				SELECT client_id, full_name, phone, car_make_model, year, mileage, body_type, color, engine_number, car_class, vin, plate, sts, pts, reason, balance, is_bot_client
 				FROM clients WHERE client_id=?
 				""",
 				(client_id,),
@@ -468,6 +504,7 @@ class Storage:
 				"pts": row[13],
 				"reason": row[14],
 				"balance": row[15],
+				"is_bot_client": row[16],
 			}
 
 	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -475,7 +512,9 @@ class Storage:
 			cursor = await db.execute(
 				"""
 				SELECT client_id, full_name, phone, car_make_model, plate, balance
-				FROM clients ORDER BY client_id DESC LIMIT ?
+				FROM clients
+				WHERE is_bot_client = 0 OR is_bot_client IS NULL
+				ORDER BY client_id DESC LIMIT ?
 				""",
 				(limit,),
 			)
@@ -745,3 +784,182 @@ class Storage:
 			await db.execute("DELETE FROM payments WHERE client_id=?", (client_id,))
 			await db.execute("DELETE FROM clients WHERE client_id=?", (client_id,))
 			await db.commit()
+
+	async def set_user_role(self, tg_user_id: int, role: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE users SET role=?, updated_at=? WHERE tg_user_id=?",
+				(role, now, tg_user_id),
+			)
+			await db.commit()
+
+	async def reset_user_registration(self, tg_user_id: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			# Reset user role and client_id
+			await db.execute(
+				"UPDATE users SET role=NULL, client_id=NULL, updated_at=? WHERE tg_user_id=?",
+				(now, tg_user_id),
+			)
+			await db.commit()
+
+	async def create_bot_client(self, tg_user_id: int, full_name: str, phone: str, car_make_model: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO clients(full_name, phone, car_make_model, is_bot_client, created_at, updated_at)
+				VALUES(?,?,?,?,?,?)
+				""",
+				(full_name, phone, car_make_model, 1, now, now),
+			)
+			client_id = cursor.lastrowid
+			# Link the bot user to the client
+			await db.execute(
+				"UPDATE users SET client_id=? WHERE tg_user_id=?",
+				(client_id, tg_user_id),
+			)
+			await db.commit()
+			print(f"DEBUG: Created bot client {client_id} for user {tg_user_id}")  # Debug log
+			return client_id
+
+	async def get_user_client_id(self, tg_user_id: int) -> Optional[int]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"SELECT client_id FROM users WHERE tg_user_id=?",
+				(tg_user_id,),
+			)
+			row = await cursor.fetchone()
+			return row[0] if row and row[0] else None
+
+	async def send_message(self, from_user_id: int, to_user_id: Optional[int], client_id: Optional[int], message_text: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO messages(from_user_id, to_user_id, client_id, message_text, created_at)
+				VALUES(?,?,?,?,?)
+				""",
+				(from_user_id, to_user_id, client_id, message_text, now),
+			)
+			await db.commit()
+			message_id = cursor.lastrowid
+			print(f"DEBUG: send_message - from_user: {from_user_id}, to_user: {to_user_id}, client: {client_id}, message_id: {message_id}")  # Debug log
+			return message_id
+
+	async def get_messages_for_admin(self) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT m.message_id, m.message_text, m.created_at, m.is_read, m.client_id,
+					   c.full_name, c.phone, c.car_make_model
+				FROM messages m
+				JOIN clients c ON m.client_id = c.client_id
+				WHERE m.to_user_id IS NULL AND c.is_bot_client = 1
+				ORDER BY m.created_at DESC
+				""",
+			)
+			rows = await cursor.fetchall()
+			print(f"DEBUG: get_messages_for_admin found {len(rows)} messages")  # Debug log
+			for row in rows:
+				print(f"DEBUG: Message - ID: {row[0]}, Client: {row[4]} ({row[5]}), Text: {row[1][:50]}...")  # Debug log
+			return [
+				{
+					"message_id": r[0],
+					"message_text": r[1],
+					"created_at": r[2],
+					"is_read": bool(r[3]),
+					"client_id": r[4],
+					"client_name": r[5],
+					"client_phone": r[6],
+					"client_car": r[7],
+				}
+				for r in rows
+			]
+
+	async def get_messages_for_client(self, client_id: int) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT m.message_id, m.message_text, m.created_at, m.from_user_id,
+					   u.role, u.username
+				FROM messages m
+				JOIN users u ON m.from_user_id = u.user_id
+				WHERE m.client_id = ?
+				ORDER BY m.created_at ASC
+				""",
+				(client_id,),
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"message_id": r[0],
+					"message_text": r[1],
+					"created_at": r[2],
+					"from_user_id": r[3],
+					"from_role": r[4],
+					"from_username": r[5],
+				}
+				for r in rows
+			]
+
+	async def mark_message_read(self, message_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE messages SET is_read=1 WHERE message_id=?",
+				(message_id,),
+			)
+			await db.commit()
+
+	async def get_client_chat_info(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT u.tg_user_id, u.chat_id, c.full_name
+				FROM users u
+				JOIN clients c ON u.client_id = c.client_id
+				WHERE c.client_id = ?
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"tg_user_id": row[0],
+				"chat_id": row[1],
+				"client_name": row[2],
+			}
+
+	async def reset_user_registration(self, tg_user_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE users SET role=NULL, client_id=NULL WHERE tg_user_id=?",
+				(tg_user_id,),
+			)
+			await db.commit()
+
+	async def get_client_chat_info(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT u.chat_id, u.tg_user_id, c.full_name
+				FROM clients c
+				JOIN users u ON u.client_id = c.client_id
+				WHERE c.client_id = ? AND c.is_bot_client = 1
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			print(f"DEBUG: get_client_chat_info for client_id {client_id} - found: {row is not None}")  # Debug log
+			if row:
+				print(f"DEBUG: Client chat info - chat_id: {row[0]}, tg_user_id: {row[1]}, name: {row[2]}")  # Debug log
+			if not row:
+				print(f"DEBUG: No chat info found for client_id {client_id}")  # Debug log
+				return None
+			return {
+				"chat_id": row[0],
+				"tg_user_id": row[1],
+				"full_name": row[2],
+			}
