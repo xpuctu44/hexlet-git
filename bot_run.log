@@ -2960,3 +2960,11 @@ INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG 
 INFO:aiogram.event:Update id=271285162 is handled. Duration 474 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285163 is handled. Duration 251 ms by bot id=8312668975
 INFO:aiogram.event:Update id=271285164 is handled. Duration 1635 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.event:Update id=271285165 is handled. Duration 508 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285166 is handled. Duration 202 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285167 is handled. Duration 1318 ms by bot id=8312668975

@@ -114,6 +114,7 @@ def generate_order_pdf(
 	vehicle: Dict[str, str],
 	works: List[Dict[str, Any]],
 	parts: List[Dict[str, Any]],
+	accepted_at_iso: str | None = None,
 	station_phone: str = "+79782091007",
 	executor_name: str = "Даниил",
 ) -> None:
@@ -148,10 +149,21 @@ def generate_order_pdf(
 	story.append(Spacer(1, 4*mm))
 
 	# Station info and order meta
+	accepted_dt_text = ""
+	if accepted_at_iso:
+		try:
+			acc = datetime.fromisoformat(accepted_at_iso)
+			accepted_dt_text = acc.strftime("%d.%m.%Y %H:%M")
+		except Exception:
+			accepted_dt_text = ""
+	right_meta_html = "Вид ремонта: техническое обслуживание"
+	right_meta_html += f"<br/>заказ принял: {executor_name}"
+	if accepted_dt_text:
+		right_meta_html += f"<br/>Принят: {accepted_dt_text}"
 	meta_table = Table([
 		[
 			_P(f"Станция тех. обслуживания<br/>Телефон: {station_phone}<br/>Адрес: г.Севастополь, Камышовое шоссе 6", styleN),
-			_P("Вид ремонта: техническое обслуживание", styleN),
+			_P(right_meta_html, styleN),
 		],
 		[
 			_P(f"Заказ-наряд № {order_number}", styleH1),

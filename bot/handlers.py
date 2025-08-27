@@ -942,6 +942,7 @@ async def cb_make_order(callback: CallbackQuery, storage: Storage) -> None:
 		vehicle=vehicle,
 		works=works_list,
 		parts=parts_list,
+		accepted_at_iso=vc.get("created_at", None),
 	)
 	# Send file
 	await callback.message.answer_document(FSInputFile(pdf_path), caption=f"Заказ-наряд № {order_number}")
