@@ -1,7 +1,7 @@
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -67,6 +67,45 @@ def _P(text: Any, style: ParagraphStyle) -> Paragraph:
 	return Paragraph(str(text), style)
 
 
+def _brand_logo_images(max_height_mm: float = 10.0) -> list:
+	"""Try to load VAG brand logos from assets. Fallback to empty list if missing.
+
+	Expected files (PNG/SVG converted to PNG) under assets directory:
+	- audi.png, volkswagen.png, skoda.png, seat.png, porsche.png
+	"""
+	assets_candidates = [
+		os.path.join(os.path.dirname(__file__), "assets"),
+		os.path.join(os.getcwd(), "bot", "assets"),
+		os.path.join(os.getcwd(), "assets"),
+	]
+	logos = [
+		("audi.png", 18),
+		("volkswagen.png", 18),
+		("skoda.png", 18),
+		("seat.png", 18),
+		("porsche.png", 18),
+	]
+	imgs = []
+	for fname, height_mm in logos:
+		path = None
+		for base in assets_candidates:
+			cand = os.path.join(base, fname)
+			if os.path.exists(cand):
+				path = cand
+				break
+		if path:
+			try:
+				# Keep aspect ratio; set height to specified mm
+				img = Image(path)
+				h = height_mm * mm
+				# scale preserving aspect ratio by height
+				img._restrictSize(9999, h)
+				imgs.append(img)
+			except Exception:
+				pass
+	return imgs
+
+
 def generate_order_pdf(
 	output_path: str,
 	order_number: int,
@@ -89,9 +128,22 @@ def generate_order_pdf(
 	doc = SimpleDocTemplate(output_path, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
 	story = []
 
-	# Header with VAG logos placeholder (text header for now)
-	header = _P("VAG Group: Audi · Volkswagen · Skoda · SEAT · Porsche", styleTitle)
-	story.append(header)
+	# Header with VAG logos (images if available, fallback to text)
+	logo_imgs = _brand_logo_images()
+	if logo_imgs:
+		# arrange in a single-row table
+		cells = [[img for img in logo_imgs]]
+		logo_table = Table(cells)
+		logo_table.setStyle(TableStyle([
+			("ALIGN", (0,0), (-1,-1), "CENTER"),
+			("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+			("LEFTPADDING", (0,0), (-1,-1), 2),
+			("RIGHTPADDING", (0,0), (-1,-1), 2),
+		]))
+		story.append(logo_table)
+	else:
+		header = _P("VAG Group: Audi · Volkswagen · Skoda · SEAT · Porsche", styleTitle)
+		story.append(header)
 	story.append(Spacer(1, 4*mm))
 
 	# Station info and order meta
