@@ -67,7 +67,7 @@ def _P(text: Any, style: ParagraphStyle) -> Paragraph:
 	return Paragraph(str(text), style)
 
 
-def _brand_logo_images(max_height_mm: float = 10.0) -> list:
+def _brand_logo_images() -> list:
 	"""Try to load VAG brand logos from assets. Fallback to empty list if missing.
 
 	Expected files (PNG/SVG converted to PNG) under assets directory:
@@ -78,15 +78,17 @@ def _brand_logo_images(max_height_mm: float = 10.0) -> list:
 		os.path.join(os.getcwd(), "bot", "assets"),
 		os.path.join(os.getcwd(), "assets"),
 	]
+	# Accept both correct and common misspelling for volkswagen
 	logos = [
-		("audi.png", 18),
-		("volkswagen.png", 18),
-		("skoda.png", 18),
-		("seat.png", 18),
-		("porsche.png", 18),
+		("audi.png"),
+		("volkswagen.png"),
+		("valkswagen.png"),
+		("skoda.png"),
+		("seat.png"),
+		("porsche.png"),
 	]
 	imgs = []
-	for fname, height_mm in logos:
+	for fname in logos:
 		path = None
 		for base in assets_candidates:
 			cand = os.path.join(base, fname)
@@ -97,9 +99,8 @@ def _brand_logo_images(max_height_mm: float = 10.0) -> list:
 			try:
 				# Keep aspect ratio; set height to specified mm
 				img = Image(path)
-				h = height_mm * mm
-				# scale preserving aspect ratio by height
-				img._restrictSize(9999, h)
+				# Uniform sizing: height 12mm, max width 28mm
+				img._restrictSize(28*mm, 12*mm)
 				imgs.append(img)
 			except Exception:
 				pass
