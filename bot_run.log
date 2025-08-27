@@ -2949,3 +2949,6 @@ INFO:aiogram.event:Update id=271285157 is handled. Duration 215 ms by bot id=831
 INFO:aiogram.event:Update id=271285158 is handled. Duration 460 ms by bot id=8312668975
 INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.event:Update id=271285159 is handled. Duration 377 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285160 is handled. Duration 309 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285161 is handled. Duration 1407 ms by bot id=8312668975
