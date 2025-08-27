@@ -111,21 +111,31 @@ def generate_order_pdf(
 	story.append(meta_table)
 	story.append(Spacer(1, 4*mm))
 
-	# Customer and vehicle block (extended)
+	# Customer and vehicle block (extended, two columns)
 	story.append(_P("<b>Данные заказчика и автомобиля</b>", styleH2))
-	cust_lines = [
-		f"Заказчик: {customer.get('full_name','')}",
-		f"Телефон: {customer.get('phone','')}",
-		f"Авто: {vehicle.get('car_make_model','')} {vehicle.get('year','')}",
-		f"Пробег: {vehicle.get('mileage','')}",
-		f"VIN: {vehicle.get('vin','')}",
-		f"Гос. номер: {vehicle.get('plate','')}",
-		f"СТС: {vehicle.get('sts','')}",
-		f"ПТС: {vehicle.get('pts','')}",
-		f"Причина обращения: {vehicle.get('reason','')}",
+	left_col = [
+		_P(f"Заказчик: {customer.get('full_name','')}", styleN),
+		_P(f"Телефон: {customer.get('phone','')}", styleN),
+		_P(f"Авто: {vehicle.get('car_make_model','')} {vehicle.get('year','')}", styleN),
+		_P(f"Пробег: {vehicle.get('mileage','')}", styleN),
 	]
-	for ln in cust_lines:
-		story.append(_P(ln, styleN))
+	right_col = [
+		_P(f"VIN: {vehicle.get('vin','')}", styleN),
+		_P(f"Гос. номер: {vehicle.get('plate','')}", styleN),
+		_P(f"СТС: {vehicle.get('sts','')}", styleN),
+		_P(f"ПТС: {vehicle.get('pts','')}", styleN),
+	]
+	# Align heights by padding with empty paragraphs to equal length
+	max_len = max(len(left_col), len(right_col))
+	while len(left_col) < max_len:
+		left_col.append(_P("", styleN))
+	while len(right_col) < max_len:
+		right_col.append(_P("", styleN))
+	info_table = Table(list(zip(left_col, right_col)), colWidths=[85*mm, 85*mm])
+	info_table.setStyle(TableStyle([
+		("VALIGN", (0,0), (-1,-1), "TOP"),
+	]))
+	story.append(info_table)
 	story.append(Spacer(1, 3*mm))
 
 	# Works table

@@ -2494,3 +2494,8 @@ INFO:aiogram.dispatcher:Polling stopped
 INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
 INFO:aiogram.event:Update id=271285086 is handled. Duration 1009 ms by bot id=8312668975
+WARNING:aiogram.dispatcher:Received SIGTERM signal
+INFO:aiogram.dispatcher:Polling stopped for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
+INFO:aiogram.dispatcher:Polling stopped
+INFO:aiogram.dispatcher:Start polling
+INFO:aiogram.dispatcher:Run polling for bot @danielchipbot id=8312668975 - 'VAG CHIP RK Servise'
