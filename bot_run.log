@@ -2409,3 +2409,35 @@ Traceback (most recent call last):
   File "/workspace/.venv/lib/python3.13/site-packages/aiogram/client/session/base.py", line 120, in check_response
     raise TelegramBadRequest(method=method, message=description)
 aiogram.exceptions.TelegramBadRequest: Telegram server says - Bad Request: query is too old and response timeout expired or query ID is invalid
+INFO:aiogram.event:Update id=271285017 is handled. Duration 284 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285018 is handled. Duration 193 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285019 is handled. Duration 520 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285020 is handled. Duration 227 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285021 is handled. Duration 226 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285022 is handled. Duration 212 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285023 is handled. Duration 259 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285024 is handled. Duration 314 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285025 is handled. Duration 342 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285026 is handled. Duration 201 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285027 is handled. Duration 285 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285028 is handled. Duration 281 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285029 is handled. Duration 252 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285030 is handled. Duration 197 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285031 is handled. Duration 197 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285032 is handled. Duration 196 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285033 is handled. Duration 205 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285034 is handled. Duration 225 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285035 is handled. Duration 251 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285036 is handled. Duration 507 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285037 is handled. Duration 214 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285038 is handled. Duration 193 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285039 is handled. Duration 277 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285040 is handled. Duration 199 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285041 is handled. Duration 200 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285042 is handled. Duration 194 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285043 is handled. Duration 206 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285044 is handled. Duration 197 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285045 is handled. Duration 203 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285046 is handled. Duration 220 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285047 is handled. Duration 198 ms by bot id=8312668975
+INFO:aiogram.event:Update id=271285048 is handled. Duration 291 ms by bot id=8312668975
