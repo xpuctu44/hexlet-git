@@ -121,19 +121,19 @@ async def cb_client_delete_menu(callback: CallbackQuery, storage: Storage) -> No
 	rows = []
 	for c in clients:
 		rows.append([
- 			InlineKeyboardButton(
- 				text=f"#{c['client_id']} {c['full_name']}",
- 				callback_data=f"clientdel:{c['client_id']}"
- 			)
- 		])
- 	if not rows:
- 		await callback.message.edit_text("Клиентов для удаления нет.", reply_markup=nav_kb("menu_clients"))
- 		await callback.answer()
- 		return
- 	rows.append([InlineKeyboardButton(text="⬅️ Назад к клиентам", callback_data="menu_clients")])
- 	kb = InlineKeyboardMarkup(inline_keyboard=rows)
- 	await callback.message.edit_text("Выберите клиента для удаления:", reply_markup=kb)
- 	await callback.answer()
+			InlineKeyboardButton(
+				text=f"#{c['client_id']} {c['full_name']}",
+				callback_data=f"clientdel:{c['client_id']}"
+			)
+		])
+	if not rows:
+		await callback.message.edit_text("Клиентов для удаления нет.", reply_markup=nav_kb("menu_clients"))
+		await callback.answer()
+		return
+	rows.append([InlineKeyboardButton(text="⬅️ Назад к клиентам", callback_data="menu_clients")])
+	kb = InlineKeyboardMarkup(inline_keyboard=rows)
+	await callback.message.edit_text("Выберите клиента для удаления:", reply_markup=kb)
+	await callback.answer()
 
 
 @router.callback_query(F.data.startswith("clientdel:"))
