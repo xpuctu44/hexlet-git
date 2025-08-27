@@ -62,9 +62,11 @@ class Storage:
 					phone TEXT,
 					car_make_model TEXT,
 					year INTEGER,
+					mileage INTEGER,
 					vin TEXT,
 					plate TEXT,
 					sts TEXT,
+					pts TEXT,
 					reason TEXT,
 					balance REAL DEFAULT 0,
 					created_at TEXT NOT NULL,
@@ -75,6 +77,16 @@ class Storage:
 			# Ensure balance column exists (for migrations)
 			try:
 				await db.execute("ALTER TABLE clients ADD COLUMN balance REAL DEFAULT 0")
+			except Exception:
+				pass
+			# Ensure mileage column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN mileage INTEGER")
+			except Exception:
+				pass
+			# Ensure pts column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN pts TEXT")
 			except Exception:
 				pass
 			# Vehicles table for garage
@@ -404,7 +416,7 @@ class Storage:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"""
-				SELECT client_id, full_name, phone, car_make_model, year, vin, plate, sts, reason, balance
+				SELECT client_id, full_name, phone, car_make_model, year, mileage, vin, plate, sts, pts, reason, balance
 				FROM clients WHERE client_id=?
 				""",
 				(client_id,),
@@ -418,11 +430,13 @@ class Storage:
 				"phone": row[2],
 				"car_make_model": row[3],
 				"year": row[4],
-				"vin": row[5],
-				"plate": row[6],
-				"sts": row[7],
-				"reason": row[8],
-				"balance": row[9],
+				"mileage": row[5],
+				"vin": row[6],
+				"plate": row[7],
+				"sts": row[8],
+				"pts": row[9],
+				"reason": row[10],
+				"balance": row[11],
 			}
 
 	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -446,6 +460,24 @@ class Storage:
 				}
 				for r in rows
 			]
+
+	async def update_client_mileage(self, client_id: int, mileage: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET mileage=?, updated_at=? WHERE client_id=?",
+				(mileage, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_pts(self, client_id: int, pts: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET pts=?, updated_at=? WHERE client_id=?",
+				(pts, now, client_id),
+			)
+			await db.commit()
 
 	async def create_vehicle_from_client(self, client_id: int) -> int:
 		now = datetime.utcnow().isoformat()
