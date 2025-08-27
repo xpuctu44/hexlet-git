@@ -182,11 +182,15 @@ def generate_order_pdf(
 		_P(f"Заказчик: {customer.get('full_name','')}", styleN),
 		_P(f"Телефон: {customer.get('phone','')}", styleN),
 		_P(f"Авто: {vehicle.get('car_make_model','')} {vehicle.get('year','')}", styleN),
+		_P(f"Кузов: {vehicle.get('body_type','')}", styleN),
+		_P(f"Цвет: {vehicle.get('color','')}", styleN),
 		_P(f"Пробег: {vehicle.get('mileage','')}", styleN),
 	]
 	right_col = [
 		_P(f"VIN: {vehicle.get('vin','')}", styleN),
 		_P(f"Гос. номер: {vehicle.get('plate','')}", styleN),
+		_P(f"№ двигателя: {vehicle.get('engine_number','')}", styleN),
+		_P(f"Класс: {vehicle.get('car_class','')}", styleN),
 		_P(f"СТС: {vehicle.get('sts','')}", styleN),
 		_P(f"ПТС: {vehicle.get('pts','')}", styleN),
 	]
@@ -201,6 +205,10 @@ def generate_order_pdf(
 		("VALIGN", (0,0), (-1,-1), "TOP"),
 	]))
 	story.append(info_table)
+	# Reason below two-column block
+	reason_txt = vehicle.get('reason', '')
+	if reason_txt:
+		story.append(_P(f"Причина обращения: {reason_txt}", styleN))
 	story.append(Spacer(1, 3*mm))
 
 	# Works table
