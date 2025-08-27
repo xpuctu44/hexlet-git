@@ -192,11 +192,12 @@ def generate_order_pdf(
 	story.append(Spacer(1, 6*mm))
 
 	# Signatures with additional texts
-	left_note = _P(
+	# Swap notes per request: above Executor -> "принял", above Customer -> "сдал ..."
+	left_note = _P("Транспортное средство принял от ", styleN)
+	right_note = _P(
 		"Транспортное средство сдал, с условиями выполнения заказа, инструкциями касательно правил поведения на территории СТО ознакомлен и обязуюсь их выполнять",
 		styleN,
 	)
-	right_note = _P("Транспортное средство принял от ", styleN)
 	left_sig = _P("Исполнитель: ____________ / Даниил", styleN)
 	right_sig = _P(f"Заказчик: ____________ / {customer.get('full_name','')}", styleN)
 	sig = Table([
