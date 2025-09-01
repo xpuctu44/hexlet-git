@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Учет рабочего времени - Вход</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .password-container {
+            position: relative;
+        }
+        .password-container input[type="password"] {
+            padding-right: 40px;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+            padding: 2px;
+            transition: color 0.2s;
+        }
+        .password-toggle:hover {
+            color: #007bff;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .register-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+        .forgot-password-link {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .forgot-password-link a {
+            color: #6c757d;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .forgot-password-link a:hover {
+            color: #007bff;
+            text-decoration: underline;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Вход</h1>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Пароль:</label>
+                <div class="password-container">
+                    <input type="password" id="password" name="password">
+                    <button type="button" class="password-toggle" id="passwordToggle" title="Показать пароль">
+                        👁️
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit">Войти</button>
+        </form>
+
+        <div class="register-link">
+            <a href="/auth.html">Нет аккаунта? Зарегистрируйтесь здесь</a>
+        </div>
+
+        <div class="forgot-password-link">
+            <a href="/forgot-password.html">Забыли пароль?</a>
+        </div>
+    </div>
+
+    <script>
+        // Password visibility toggle functionality
+        document.getElementById('passwordToggle').addEventListener('click', function() {
+            const passwordInput = document.getElementById('password');
+            const toggleButton = document.getElementById('passwordToggle');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleButton.textContent = '🙈';
+                toggleButton.title = 'Скрыть пароль';
+            } else {
+                passwordInput.type = 'password';
+                toggleButton.textContent = '👁️';
+                toggleButton.title = 'Показать пароль';
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Store user info in localStorage for session management
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                    localStorage.setItem('token', result.token);
+
+                    alert('Вход выполнен успешно!');
+                    // Redirect to dashboard
+                    window.location.href = '/dashboard.html';
+                } else {
+                    alert('Ошибка входа: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Произошла ошибка при входе. Пожалуйста, попробуйте еще раз.');
+            }
+        });
+
+        // Check if user session is still valid
+        window.addEventListener('DOMContentLoaded', async function() {
+            const user = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
+
+            // If we have stored user data, check if session is still valid
+            if (user && token) {
+                try {
+                    const response = await fetch('/current-user');
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Session is still valid, redirect to dashboard
+                        window.location.href = '/dashboard.html';
+                        return;
+                    } else {
+                        // Session expired, clear localStorage
+                        localStorage.clear();
+                    }
+                } catch (error) {
+                    // Error checking session, clear localStorage to be safe
+                    localStorage.clear();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
