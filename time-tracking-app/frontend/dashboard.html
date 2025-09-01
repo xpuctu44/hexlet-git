@@ -1,0 +1,3598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Учет рабочего времени - Панель управления</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .time-controls {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .time-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 20px 0;
+        }
+        .status {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .status.active {
+            color: #28a745;
+        }
+        .status.inactive {
+            color: #6c757d;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .btn-toggle {
+            background-color: #28a745;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-toggle.working {
+            background-color: #dc3545;
+        }
+        .btn-logout {
+            background-color: #6c757d;
+            color: white;
+        }
+        .time-entries {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .entry {
+            border-bottom: 1px solid #eee;
+            padding: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .entry:last-child {
+            border-bottom: none;
+        }
+        .entry-date {
+            font-weight: bold;
+            color: #333;
+        }
+        .entry-time {
+            color: #666;
+        }
+        .entry-duration {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .admin-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .admin-panel h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        /* Calendar Styles */
+        .calendar-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        .calendar-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            min-width: 100%;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .calendar-nav button {
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .calendar-nav button:hover {
+            background: #0056b3;
+        }
+        .calendar-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .schedule-table {
+            display: table;
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 800px;
+        }
+        .schedule-row {
+            display: table-row;
+        }
+        .employee-cell {
+            display: table-cell;
+            background: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+            color: #333;
+            min-width: 200px;
+            vertical-align: middle;
+        }
+        .date-header {
+            display: table-cell;
+            background: #f8f9fa;
+            padding: 8px 4px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            min-width: 40px;
+            font-size: 12px;
+        }
+        .schedule-cell {
+            display: table-cell;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            min-height: 40px;
+            padding: 2px;
+            position: relative;
+            min-width: 40px;
+        }
+        .schedule-cell:hover {
+            background: #f8f9fa;
+        }
+        .shift-cell {
+            background: #e9ecef;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 1px 0;
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 20px;
+        }
+        .shift-cell.working_day {
+            background: #d4edda;
+            color: #155724;
+        }
+        .shift-cell.day_off {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .shift-cell.time_off {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .shift-cell.sick_leave {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .shift-cell.vacation {
+            background: #d4edda;
+            color: #155724;
+        }
+        .shift-hours {
+            font-weight: bold;
+            font-size: 9px;
+            padding: 2px;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+        }
+        .shift-hours:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .time-editor {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+        .time-editor input {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            margin-bottom: 5px;
+        }
+        .time-editor-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .time-editor-buttons button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .time-save-btn {
+            background: #28a745;
+            color: white;
+        }
+        .time-cancel-btn {
+            background: #6c757d;
+            color: white;
+        }
+        .time-info {
+            font-size: 8px;
+            color: #666;
+            margin-top: 1px;
+            padding: 1px 2px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .time-info:hover {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .shift-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        .shift-type {
+            font-size: 8px;
+            color: inherit;
+            opacity: 0.8;
+            margin-bottom: 1px;
+        }
+        .hours-editor {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 120px;
+        }
+        .hours-editor input {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            margin-bottom: 5px;
+        }
+        .hours-editor-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .hours-editor-buttons button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .hours-save-btn {
+            background: #28a745;
+            color: white;
+        }
+        .hours-cancel-btn {
+            background: #6c757d;
+            color: white;
+        }
+        .shift-editor {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+        .shift-editor select,
+        .shift-editor input {
+            width: 100%;
+            padding: 5px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .shift-editor button {
+            padding: 5px 10px;
+            margin: 5px 2px 0 0;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .shift-editor .save-btn {
+            background: #28a745;
+            color: white;
+        }
+        .shift-editor .cancel-btn {
+            background: #6c757d;
+            color: white;
+        }
+
+        /* Admin Tabs Styles */
+        .admin-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .admin-tab {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            color: #6c757d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .admin-tab:hover {
+            color: #007bff;
+        }
+        .admin-tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        .admin-tab-content {
+            display: none;
+        }
+        .admin-tab-content.active {
+            display: block;
+        }
+
+        /* Planning specific styles */
+        .planning-cell {
+            position: relative;
+        }
+        .planning-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+        .planning-dropdown select {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+        }
+        .planning-cell.selected {
+            background: #e3f2fd !important;
+            border: 2px solid #2196f3 !important;
+        }
+        .planning-cell.dragging {
+            opacity: 0.7;
+        }
+
+        /* Reports specific styles */
+        .reports-table {
+            margin-top: 20px;
+        }
+        .report-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .summary-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .report-employee-row {
+            display: table-row;
+        }
+        .report-employee-cell {
+            display: table-cell;
+            background: #f8f9fa;
+            padding: 12px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+            color: #333;
+        }
+        .report-data-cell {
+            display: table-cell;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: center;
+        }
+        .report-header {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Report sub-tabs styles */
+        .report-subtabs {
+            margin-bottom: 20px;
+        }
+        .report-subtab {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            color: #6c757d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .report-subtab:hover {
+            color: #007bff;
+        }
+        .report-subtab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        .report-subtab-content {
+            display: none;
+        }
+        .report-subtab-content.active {
+            display: block;
+        }
+
+        /* Absence reports styles */
+        .absence-reports-table {
+            margin-top: 20px;
+        }
+        .absence-employee-row {
+            display: table-row;
+        }
+        .absence-employee-cell {
+            display: table-cell;
+            background: #f8f9fa;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+            color: #333;
+            vertical-align: top;
+        }
+        .absence-data-cell {
+            display: table-cell;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            vertical-align: top;
+        }
+        .absence-type {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #007bff;
+        }
+        .absence-count {
+            font-size: 18px;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 5px;
+        }
+        .absence-dates {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+        }
+        .absence-dates-list {
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .absence-header {
+            background: #f8f9fa;
+            font-weight: bold;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .absence-header-cell {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 12px;
+        }
+
+        /* Date range selector styles */
+        .period-btn {
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .period-btn:hover {
+            background: #0056b3;
+        }
+        .period-btn.active {
+            background: #28a745;
+        }
+
+        /* Employees management styles */
+        .employees-container {
+            margin-top: 20px;
+        }
+        .employees-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .employee-row {
+            display: table-row;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .employee-row:last-child {
+            border-bottom: none;
+        }
+        .employee-header {
+            background: #f8f9fa;
+            font-weight: bold;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .employee-cell {
+            display: table-cell;
+            padding: 15px;
+            vertical-align: middle;
+            border-right: 1px solid #dee2e6;
+        }
+        .employee-cell:last-child {
+            border-right: none;
+        }
+        .employee-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .btn-action {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-delete:hover {
+            background: #c82333;
+        }
+        .btn-promote {
+            background: #28a745;
+            color: white;
+        }
+        .btn-promote:hover {
+            background: #218838;
+        }
+        .btn-disabled {
+            background: #6c757d;
+            color: white;
+            cursor: not-allowed;
+        }
+        .role-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .role-admin {
+            background: #007bff;
+            color: white;
+        }
+        .role-employee {
+            background: #28a745;
+            color: white;
+        }
+
+        /* Employee report styles */
+        .employee-report-table {
+            margin-top: 20px;
+        }
+        .employee-report-table .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Allowed IPs styles */
+        .allowed-ips-container {
+            margin-top: 20px;
+        }
+        .allowed-ips-list {
+            margin-top: 20px;
+        }
+        .allowed-ips-list .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Collapsible entries list styles */
+        .entries-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 10px;
+        }
+        .entries-header:hover {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding-left: 10px;
+            margin-left: -10px;
+            margin-right: -10px;
+        }
+        .entries-toggle {
+            font-size: 18px;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+        .entries-toggle.collapsed {
+            transform: rotate(90deg);
+        }
+        .entries-container {
+            transition: all 0.3s ease;
+        }
+        .entries-container.collapsed {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Система учета рабочего времени сотрудников</h1>
+        <div class="user-info">
+            <span id="userInfo">Loading...</span>
+            <button class="btn-logout" onclick="logout()">Выход</button>
+        </div>
+    </div>
+
+    <div class="time-controls">
+        <h2>Отслеживание времени</h2>
+        <div class="time-display" id="currentTime">--:--:--</div>
+        <div class="status inactive" id="status">Время не отслеживается</div>
+        <div>
+            <button class="btn-toggle" id="toggleBtn" onclick="toggleTimeTracking()">Я пришел</button>
+        </div>
+    </div>
+
+    <div class="time-entries">
+        <div class="entries-header" onclick="toggleEntriesList()">
+            <h2 style="margin: 0;">Ваши записи времени</h2>
+            <span class="entries-toggle collapsed" id="entriesToggle">▶</span>
+        </div>
+        <div class="entries-container collapsed" id="entriesContainer">
+            <div id="entriesList">
+                <div class="loading">Загрузка записей времени...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-panel" id="adminPanel" style="display: none;">
+        <h3>Панель администратора</h3>
+
+        <!-- Admin Tabs -->
+        <div class="admin-tabs">
+            <button class="admin-tab active" onclick="showAdminTab('schedule')">Расписание</button>
+            <button class="admin-tab" onclick="showAdminTab('planning')">Планирование</button>
+            <button class="admin-tab" onclick="showAdminTab('employees')">Сотрудники</button>
+            <button class="admin-tab" onclick="showAdminTab('reports')">Отчеты</button>
+        </div>
+
+        <!-- Schedule Tab -->
+        <div id="scheduleTab" class="admin-tab-content active">
+            <h4>Управление расписанием сотрудников</h4>
+            <div class="calendar-container">
+                <div class="calendar-section">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button onclick="previousMonth()">&larr;</button>
+                            <div class="calendar-title" id="calendarTitle">Загрузка...</div>
+                            <button onclick="nextMonth()">&rarr;</button>
+                        </div>
+                        <button onclick="loadCalendarData()">Обновить</button>
+                    </div>
+                    <div class="schedule-table" id="scheduleTable">
+                        <div class="loading">Загрузка расписания...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planning Tab -->
+        <div id="planningTab" class="admin-tab-content">
+            <h4>Планирование графика сотрудников</h4>
+            <div class="calendar-container">
+                <div class="calendar-section">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button onclick="previousPlanningMonth()">&larr;</button>
+                            <div class="calendar-title" id="planningTitle">Загрузка...</div>
+                            <button onclick="nextPlanningMonth()">&rarr;</button>
+                        </div>
+                        <button onclick="loadPlanningData()">Обновить</button>
+                        <button onclick="savePlanningData()">Сохранить план</button>
+                    </div>
+                    <div class="schedule-table" id="planningTable">
+                        <div class="loading">Загрузка планирования...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employees Tab -->
+        <div id="employeesTab" class="admin-tab-content">
+            <h4>Управление сотрудниками</h4>
+            <div class="employees-container">
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button onclick="loadAllUsers()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">📋 Обновить список</button>
+                    <button onclick="showAddIpDropdown()" style="padding: 10px 20px; background: linear-gradient(135deg, #28a745, #20c997); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);">➕ ДОБАВИТЬ РАЗРЕШЕННЫЙ IP</button>
+                    <button onclick="showIpListDropdown()" style="padding: 10px 20px; background: linear-gradient(135deg, #17a2b8, #20c997); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);">📋 СПИСОК РАЗРЕШЕННЫХ IP</button>
+                </div>
+
+                <!-- Add IP Dropdown (hidden by default) -->
+                <div id="addIpDropdown" class="add-ip-dropdown" style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <h4 style="margin: 0 0 20px 0; color: white; font-size: 20px; text-align: center;">🌐 ДОБАВИТЬ НОВЫЙ РАЗРЕШЕННЫЙ IP АДРЕС</h4>
+                    <div style="max-width: 500px; margin: 0 auto;">
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: white; font-weight: bold; font-size: 16px;">IP адрес:</label>
+                            <input type="text" id="employeeIpAddress" placeholder="Введите IP адрес (например: 192.168.1.100)" style="width: 100%; padding: 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.95); font-size: 16px; box-sizing: border-box;">
+                        </div>
+                        <div style="text-align: center;">
+                            <button onclick="addEmployeeIp()" style="padding: 15px 30px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3); margin-right: 10px;">
+                                💾 СОХРАНИТЬ IP АДРЕС
+                            </button>
+                            <button onclick="hideAddIpDropdown()" style="padding: 15px 30px; background: #6c757d; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px;">
+                                ❌ ОТМЕНА
+                            </button>
+                        </div>
+                        <p style="margin: 15px 0 0 0; color: rgba(255,255,255,0.8); font-size: 14px; text-align: center;">Добавьте IP адрес, с которого сотрудники смогут отмечать время прихода и ухода</p>
+                    </div>
+                </div>
+
+                <!-- IP List Dropdown (hidden by default) -->
+                <div id="ipListDropdown" class="ip-list-dropdown" style="display: none; background: linear-gradient(135deg, #6f42c1, #6610f2); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <h4 style="margin: 0 0 20px 0; color: white; font-size: 20px; text-align: center;">📋 СПИСОК РАЗРЕШЕННЫХ IP АДРЕСОВ</h4>
+                    <div style="max-width: 600px; margin: 0 auto;">
+                        <div id="ipListContainer" style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; backdrop-filter: blur(10px);">
+                            <div class="loading" style="color: white; text-align: center;">Загрузка списка IP адресов...</div>
+                        </div>
+                        <div style="text-align: center; margin-top: 20px;">
+                            <button onclick="hideIpListDropdown()" style="padding: 12px 25px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                                ❌ ЗАКРЫТЬ СПИСОК
+                            </button>
+                        </div>
+                        <p style="margin: 15px 0 0 0; color: rgba(255,255,255,0.8); font-size: 14px; text-align: center;">Здесь отображаются все разрешенные IP адреса. Вы можете удалить любой адрес из списка.</p>
+                    </div>
+                </div>
+
+                <div id="employeesTable" class="employees-table">
+                    <div class="loading">Загрузка списка сотрудников...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="reportsTab" class="admin-tab-content">
+            <h4>Отчеты</h4>
+
+            <!-- Report Sub-tabs -->
+            <div class="report-subtabs" style="display: flex; margin-bottom: 20px; border-bottom: 1px solid #dee2e6;">
+                <button class="report-subtab active" onclick="showReportSubtab('monthly')">Отчет по сменам</button>
+                <button class="report-subtab" onclick="showReportSubtab('absences')">Отчеты отсутствий за год</button>
+                <button class="report-subtab" onclick="showReportSubtab('employee')">Отчет по сотруднику</button>
+            </div>
+
+            <!-- Monthly Report Sub-tab -->
+            <div id="monthlyReportTab" class="report-subtab-content active">
+                <div class="calendar-container">
+                    <div class="calendar-section">
+                        <!-- Date Range Selector -->
+                        <div class="date-range-selector" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <h5 style="margin: 0 0 15px 0; color: #333;">Выберите период отчета:</h5>
+
+                            <!-- Quick Period Buttons -->
+                            <div class="period-buttons" style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                                <button onclick="setPeriod('today')" class="period-btn">Сегодня</button>
+                                <button onclick="setPeriod('week')" class="period-btn">Неделя</button>
+                                <button onclick="setPeriod('month')" class="period-btn">Месяц</button>
+                                <button onclick="setPeriod('quarter')" class="period-btn">Квартал</button>
+                                <button onclick="setPeriod('year')" class="period-btn">Год</button>
+                            </div>
+
+                            <!-- Custom Date Range -->
+                            <div class="custom-dates" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                <div>
+                                    <label for="startDate" style="display: block; margin-bottom: 5px; font-weight: bold;">Дата начала:</label>
+                                    <input type="date" id="startDate" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                </div>
+                                <div>
+                                    <label for="endDate" style="display: block; margin-bottom: 5px; font-weight: bold;">Дата окончания:</label>
+                                    <input type="date" id="endDate" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                </div>
+                                <div style="align-self: flex-end;">
+                                    <button onclick="loadCustomReport()" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Показать отчет</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="calendar-header">
+                            <div class="calendar-nav">
+                                <button onclick="previousReportMonth()">&larr;</button>
+                                <div class="calendar-title" id="reportTitle">Загрузка...</div>
+                                <button onclick="nextReportMonth()">&rarr;</button>
+                            </div>
+                            <button onclick="loadReportData()">Обновить</button>
+                            <button onclick="downloadReportExcel()" style="background-color: #28a745; color: white; margin-left: 10px;">Скачать Excel</button>
+                        </div>
+                        <div class="reports-table" id="reportsTable">
+                            <div class="loading">Загрузка отчета...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Annual Absence Report Sub-tab -->
+            <div id="absenceReportTab" class="report-subtab-content">
+                <div class="calendar-container">
+                    <div class="calendar-section">
+                        <div class="calendar-header">
+                            <div class="calendar-nav">
+                                <div class="calendar-title" id="absenceTitle">Загрузка...</div>
+                                <div style="font-size: 14px; color: #666; margin-left: 10px;">(1 января - 31 декабря текущего года)</div>
+                            </div>
+                            <button onclick="loadAbsenceReportData()">Обновить</button>
+                            <button onclick="downloadAbsenceReportExcel()" style="background-color: #28a745; color: white; margin-left: 10px;">Скачать Excel</button>
+                        </div>
+                        <div class="absence-reports-table" id="absenceReportsTable">
+                            <div class="loading">Загрузка отчета об отсутствиях...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employee Detailed Report Sub-tab -->
+            <div id="employeeReportTab" class="report-subtab-content">
+                <div class="calendar-container">
+                    <div class="calendar-section">
+                        <div class="calendar-header">
+                            <div class="calendar-nav">
+                                <div class="calendar-title">Отчет по сотруднику</div>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <select id="employeeSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 200px;">
+                                    <option value="">Выберите сотрудника...</option>
+                                </select>
+                                <button onclick="loadEmployeeReport()" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Показать отчет</button>
+                            </div>
+                        </div>
+                        <div class="employee-report-table" id="employeeReportTable">
+                            <div class="loading">Выберите сотрудника и нажмите "Показать отчет"</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentTimeInterval = null;
+        let startTime = null;
+
+        // Load current user and initialize dashboard
+        async function loadCurrentUser() {
+            console.log('Starting loadCurrentUser...');
+            try {
+                console.log('Fetching /current-user...');
+                const response = await fetch('/current-user');
+                console.log('Response received:', response.status, response.statusText);
+                const result = await response.json();
+                console.log('Result:', result);
+
+                if (!result.success) {
+                    console.log('Authentication failed, redirecting to auth page...');
+                    window.location.href = '/auth.html';
+                    return;
+                }
+
+                currentUser = result.user;
+                console.log('User loaded:', currentUser);
+                document.getElementById('userInfo').textContent =
+                    `${currentUser.fio} (${currentUser.role}) - ${currentUser.email}`;
+
+                // Show admin panel for administrators
+                if (currentUser.role === 'administrator') {
+                    console.log('Loading admin panel...');
+                    document.getElementById('adminPanel').style.display = 'block';
+                    loadEmployees();
+                    loadCalendarData();
+                }
+
+                // Check for active time tracking session
+                console.log('Checking active session...');
+                await checkActiveSession();
+                console.log('Loading time entries...');
+                loadTimeEntries();
+            } catch (error) {
+                console.error('Error loading user:', error);
+                window.location.href = '/auth.html';
+            }
+            console.log('loadCurrentUser completed');
+        }
+
+        // Load user's time entries
+        async function loadTimeEntries() {
+            try {
+                const response = await fetch(`/time-entries/${currentUser.id}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    displayTimeEntries(result.time_entries);
+                } else {
+                    document.getElementById('entriesList').innerHTML =
+                        '<div class="loading">Error loading time entries</div>';
+                }
+            } catch (error) {
+                console.error('Error loading time entries:', error);
+                document.getElementById('entriesList').innerHTML =
+                    '<div class="loading">Ошибка загрузки записей времени</div>';
+            }
+        }
+
+        // Display time entries
+        function displayTimeEntries(entries) {
+            if (entries.length === 0) {
+                document.getElementById('entriesList').innerHTML =
+                    '<div class="loading">Записи времени не найдены</div>';
+                return;
+            }
+
+            const entriesHtml = entries.map(entry => {
+                const startTime = new Date(entry.start_time).toLocaleString();
+                const endTime = entry.end_time ? new Date(entry.end_time).toLocaleString() : 'В процессе';
+                const duration = entry.duration_minutes ?
+                    `${Math.floor(entry.duration_minutes / 60)}h ${Math.round(entry.duration_minutes % 60)}m` :
+                    '--';
+
+                return `
+                    <div class="entry">
+                        <div>
+                            <div class="entry-date">${entry.date}</div>
+                            <div class="entry-time">${startTime} - ${endTime}</div>
+                        </div>
+                        <div class="entry-duration">${duration}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('entriesList').innerHTML = entriesHtml;
+
+            // Keep the container collapsed by default (don't auto-expand)
+        }
+
+        // Load all users (admin only)
+        async function loadAllUsers() {
+            try {
+                const response = await fetch('/users');
+                const result = await response.json();
+
+                if (result.success) {
+                    displayUsers(result.users);
+                } else {
+                    document.getElementById('usersList').innerHTML =
+                        '<div class="loading">Ошибка загрузки пользователей</div>';
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('usersList').innerHTML =
+                    '<div class="loading">Error loading users</div>';
+            }
+        }
+
+        // Display users table (admin only)
+        function displayUsers(users) {
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th>Email</th>
+                            <th>Роль</th>
+                            <th>Зарегистрирован</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td>${user.fio}</td>
+                                <td>${user.email}</td>
+                                <td>${user.role}</td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('usersList').innerHTML = tableHtml;
+        }
+
+        // Check if user has active time tracking session
+        async function checkActiveSession() {
+            try {
+                const response = await fetch(`/time-entries/${currentUser.id}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const activeEntry = result.time_entries.find(entry => !entry.end_time);
+                    if (activeEntry) {
+                        startTime = new Date(activeEntry.start_time);
+                        document.getElementById('status').textContent = 'Отслеживание времени...';
+                        document.getElementById('status').className = 'status active';
+                        document.getElementById('toggleBtn').textContent = 'Я ушел';
+                        document.getElementById('toggleBtn').className = 'btn-toggle working';
+                        startTimeInterval();
+                    } else {
+                        document.getElementById('status').textContent = 'Время не отслеживается';
+                        document.getElementById('status').className = 'status inactive';
+                        document.getElementById('toggleBtn').textContent = 'Я пришел';
+                        document.getElementById('toggleBtn').className = 'btn-toggle';
+                        stopTimeInterval();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking active session:', error);
+            }
+        }
+
+        // Toggle time tracking
+        async function toggleTimeTracking() {
+            const button = document.getElementById('toggleBtn');
+            const isWorking = button.textContent === 'Я ушел';
+
+            try {
+                const action = isWorking ? 'stop' : 'start';
+                const response = await fetch('/time-entries/start-stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        action: action
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    if (action === 'start') {
+                        startTime = new Date();
+                        document.getElementById('status').textContent = 'Отслеживание времени...';
+                        document.getElementById('status').className = 'status active';
+                        button.textContent = 'Я ушел';
+                        button.className = 'btn-toggle working';
+                        startTimeInterval();
+                    } else {
+                        document.getElementById('status').textContent = 'Время не отслеживается';
+                        document.getElementById('status').className = 'status inactive';
+                        button.textContent = 'Я пришел';
+                        button.className = 'btn-toggle';
+                        stopTimeInterval();
+                    }
+
+                    loadTimeEntries(); // Refresh entries
+                } else {
+                    // Handle IP restriction error
+                    if (result.message && result.message.includes('IP address')) {
+                        alert('Ошибка доступа: ' + result.message + '\n\nОбратитесь к администратору для добавления вашего IP адреса в список разрешенных.');
+                    } else {
+                        alert('Ошибка: ' + result.message);
+                    }
+                }
+            } catch (error) {
+                console.error('Error toggling time tracking:', error);
+                alert('Ошибка при изменении статуса отслеживания времени');
+            }
+        }
+
+        // Start updating current time display
+        function startTimeInterval() {
+            if (currentTimeInterval) {
+                clearInterval(currentTimeInterval);
+            }
+
+            currentTimeInterval = setInterval(() => {
+                if (startTime) {
+                    const now = new Date();
+                    const diff = now - startTime;
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                    document.getElementById('currentTime').textContent =
+                        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }, 1000);
+        }
+
+        // Stop updating current time display
+        function stopTimeInterval() {
+            if (currentTimeInterval) {
+                clearInterval(currentTimeInterval);
+                currentTimeInterval = null;
+            }
+            document.getElementById('currentTime').textContent = '--:--:--';
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                await fetch('/logout', { method: 'POST' });
+            } catch (error) {
+                console.error('Error during logout:', error);
+            }
+
+            // Clear local storage and redirect
+            localStorage.clear();
+            window.location.href = '/auth.html';
+        }
+
+        // Admin tabs functionality
+        function showAdminTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.admin-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all tabs
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab content
+            document.getElementById(tabName + 'Tab').classList.add('active');
+
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+
+            // Load data for the selected tab
+            if (tabName === 'planning') {
+                loadPlanningData();
+            } else if (tabName === 'schedule') {
+                loadCalendarData();
+            } else if (tabName === 'employees') {
+                loadAllUsers();
+            } else if (tabName === 'reports') {
+                loadReportData();
+            }
+        }
+
+        // Calendar functionality
+        let currentCalendarDate = new Date();
+        let calendarData = {};
+        let employees = [];
+        let timeEntriesData = {}; // Store time entries by employee ID
+
+        // Planning functionality
+        let currentPlanningDate = new Date();
+        let planningData = {};
+        let isDragging = false;
+        let dragStartCell = null;
+        let dragShiftType = '';
+
+        // Reports functionality
+        let currentReportDate = new Date();
+        let reportData = {};
+        let currentStartDate = null;
+        let currentEndDate = null;
+        let isCustomPeriod = false;
+
+        // Absence reports functionality
+        let currentAbsenceDate = new Date(); // Will always show current year
+        let absenceReportData = {};
+
+        // Load all employees for calendar
+        async function loadEmployees() {
+            try {
+                const response = await fetch('/users');
+                const result = await response.json();
+
+                if (result.success) {
+                    employees = result.users.filter(user => user.role === 'employee');
+                    displayEmployeeList();
+                } else {
+                    document.getElementById('employeeList').innerHTML =
+                        '<div class="loading">Ошибка загрузки сотрудников</div>';
+                }
+            } catch (error) {
+                console.error('Error loading employees:', error);
+                document.getElementById('employeeList').innerHTML =
+                    '<div class="loading">Error loading employees</div>';
+            }
+        }
+
+        // Display employee list (no longer needed in new layout)
+        function displayEmployeeList() {
+            // This function is kept for compatibility but not used in new layout
+        }
+
+        // Load calendar data for current month
+        async function loadCalendarData() {
+            try {
+                const year = currentCalendarDate.getFullYear();
+                const month = currentCalendarDate.getMonth() + 1;
+
+                const response = await fetch(`/schedule?year=${year}&month=${month}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    calendarData = result.schedules;
+
+                    // Also load time entries for all employees
+                    await loadTimeEntriesForCalendar();
+
+                    renderCalendar();
+                } else {
+                    document.getElementById('scheduleTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки данных календаря</div>';
+                }
+            } catch (error) {
+                console.error('Error loading calendar data:', error);
+                document.getElementById('scheduleTable').innerHTML =
+                    '<div class="loading">Ошибка загрузки данных календаря</div>';
+            }
+        }
+
+        // Load time entries for all employees in the calendar
+        async function loadTimeEntriesForCalendar() {
+            timeEntriesData = {};
+
+            for (const employee of employees) {
+                try {
+                    const response = await fetch(`/time-entries/${employee.id}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        timeEntriesData[employee.id] = result.time_entries;
+                    }
+                } catch (error) {
+                    console.error(`Error loading time entries for ${employee.id}:`, error);
+                }
+            }
+        }
+
+        // Load planning data for current month
+        async function loadPlanningData() {
+            try {
+                const year = currentPlanningDate.getFullYear();
+                const month = currentPlanningDate.getMonth() + 1;
+
+                const response = await fetch(`/planning?year=${year}&month=${month}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    planningData = result.planning || {};
+                    renderPlanningTable();
+                } else {
+                    // If planning endpoint doesn't exist yet, create empty planning data
+                    planningData = {};
+                    renderPlanningTable();
+                }
+            } catch (error) {
+                console.error('Error loading planning data:', error);
+                // If endpoint doesn't exist, create empty planning data
+                planningData = {};
+                renderPlanningTable();
+            }
+        }
+
+        // Save planning data
+        async function savePlanningData() {
+            try {
+                const year = currentPlanningDate.getFullYear();
+                const month = currentPlanningDate.getMonth() + 1;
+
+                const response = await fetch(`/planning?year=${year}&month=${month}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ planning: planningData })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('План сохранен успешно!');
+
+                    // Transfer planning data to schedule
+                    await transferPlanningToSchedule();
+
+                    // Reload calendar data to show the transferred shifts
+                    loadCalendarData();
+                } else {
+                    alert('Ошибка сохранения плана: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving planning data:', error);
+                alert('Ошибка сохранения плана');
+            }
+        }
+
+        // Transfer planning data to schedule
+        async function transferPlanningToSchedule() {
+            try {
+                const year = currentPlanningDate.getFullYear();
+                const month = currentPlanningDate.getMonth() + 1;
+
+                // For each employee in planning data
+                for (const employeeId in planningData) {
+                    const employeePlanning = planningData[employeeId];
+
+                    // For each date in the planning
+                    for (const date in employeePlanning) {
+                        const shiftData = employeePlanning[date];
+
+                        // Get existing schedule data to preserve actual hours
+                        let existingActualHours = null;
+                        try {
+                            const existingResponse = await fetch(`/schedule/${employeeId}/${date}`);
+                            if (existingResponse.ok) {
+                                const existingData = await existingResponse.json();
+                                if (existingData.success && existingData.schedule.actual_hours !== null) {
+                                    existingActualHours = existingData.schedule.actual_hours;
+                                }
+                            }
+                        } catch (error) {
+                            console.log(`No existing schedule data for ${employeeId} on ${date}`);
+                        }
+
+                        // Save to schedule, preserving actual hours
+                        const scheduleResponse = await fetch(`/schedule/${employeeId}/${date}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                shift_type: shiftData.shift_type,
+                                hours: shiftData.hours,
+                                actual_hours: existingActualHours // Preserve existing actual hours
+                            })
+                        });
+
+                        if (!scheduleResponse.ok) {
+                            console.error(`Failed to save schedule for ${employeeId} on ${date}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error transferring planning to schedule:', error);
+            }
+        }
+
+        // Render schedule table
+        function renderCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+
+            // Update calendar title
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                              'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            document.getElementById('calendarTitle').textContent = `${monthNames[month]} ${year}`;
+
+            // Get all dates for the month
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const dates = [];
+
+            for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
+                dates.push(new Date(date));
+            }
+
+            // Create table HTML
+            let tableHtml = '<div class="schedule-table">';
+
+            // Header row with dates
+            tableHtml += '<div class="schedule-row">';
+            tableHtml += '<div class="employee-cell">Сотрудник</div>';
+
+            dates.forEach(date => {
+                const dayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][date.getDay()];
+                tableHtml += `<div class="date-header">${date.getDate()}<br><small>${dayName}</small></div>`;
+            });
+
+            tableHtml += '</div>';
+
+            // Employee rows
+            employees.forEach(employee => {
+                tableHtml += '<div class="schedule-row">';
+                tableHtml += `<div class="employee-cell">${employee.fio}</div>`;
+
+                dates.forEach(date => {
+                    const dateStr = date.getFullYear() + '-' +
+                                    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                    String(date.getDate()).padStart(2, '0');
+                    const employeeSchedule = calendarData[employee.id];
+                    let cellContent = '';
+
+                    // Get time entries for this employee and date
+                    const timeEntries = getTimeEntriesForDate(employee.id, dateStr);
+
+                    if (employeeSchedule && employeeSchedule.schedule[dateStr]) {
+                        const shift = employeeSchedule.schedule[dateStr];
+                        const shiftClass = shift.shift_type;
+                        const plannedHours = shift.hours || 0;
+                        const actualHours = shift.actual_hours;
+                        const displayHours = actualHours !== null ? `${actualHours}ч / ${plannedHours}ч` : `${plannedHours}ч`;
+                        const titleText = actualHours !== null ?
+                            `${employee.fio}: ${getShiftTypeName(shift.shift_type)} - План: ${plannedHours}ч, Факт: ${actualHours}ч` :
+                            `${employee.fio}: ${getShiftTypeName(shift.shift_type)} - ${plannedHours}ч`;
+
+                        cellContent = `
+                            <div class="shift-cell ${shiftClass}"
+                                     title="${titleText}">
+                                <div class="shift-info">
+                                    <div class="shift-type">${getShiftTypeName(shift.shift_type)}</div>
+                                    <div class="shift-hours">
+                                        ${displayHours}
+                                    </div>
+                                    ${timeEntries.length > 0 ? `<div class="time-info">${formatTimeDisplay(timeEntries)}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Default working day
+                        cellContent = `
+                            <div class="shift-cell working_day"
+                                     title="${employee.fio}: Рабочий день - 8ч">
+                                <div class="shift-info">
+                                    <div class="shift-type">Рабочий день</div>
+                                    <div class="shift-hours">
+                                        8ч
+                                    </div>
+                                    ${timeEntries.length > 0 ? `<div class="time-info">${formatTimeDisplay(timeEntries)}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    tableHtml += `<div class="schedule-cell">${cellContent}</div>`;
+                });
+
+                tableHtml += '</div>';
+            });
+
+            tableHtml += '</div>';
+
+            document.getElementById('scheduleTable').innerHTML = tableHtml;
+        }
+
+        // Get human-readable shift type name
+        function getShiftTypeName(shiftType) {
+            const names = {
+                'working_day': 'Рабочий день',
+                'day_off': 'Выходной',
+                'time_off': 'Отгул',
+                'sick_leave': 'Больничный',
+                'vacation': 'Отпуск'
+            };
+            return names[shiftType] || shiftType;
+        }
+
+        // Get time entries for a specific employee and date
+        function getTimeEntriesForDate(employeeId, dateStr) {
+            if (!timeEntriesData[employeeId]) {
+                return [];
+            }
+
+            return timeEntriesData[employeeId].filter(entry => entry.date === dateStr);
+        }
+
+        // Format time display for schedule cells
+        function formatTimeDisplay(timeEntries) {
+            if (timeEntries.length === 0) return '';
+
+            if (timeEntries.length === 1) {
+                const entry = timeEntries[0];
+                const startTime = entry.start_time ? new Date(entry.start_time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '--:--';
+                const endTime = entry.end_time ? new Date(entry.end_time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '--:--';
+                return `${startTime}-${endTime}`;
+            } else {
+                return `${timeEntries.length} записей`;
+            }
+        }
+
+        // Edit time entries for a specific employee and date
+        function editTime(employeeId, dateStr) {
+            // Remove existing editors
+            const existingEditors = document.querySelectorAll('.time-editor, .shift-editor, .hours-editor');
+            existingEditors.forEach(editor => editor.remove());
+
+            const employee = employees.find(emp => emp.id === employeeId);
+            if (!employee) return;
+
+            // Create date object from the date string and get local date string
+            const dateObj = new Date(dateStr + 'T00:00:00');
+            const localDateStr = dateObj.toLocaleDateString('ru-RU');
+
+            // Get existing time entries for this date
+            const timeEntries = getTimeEntriesForDate(employeeId, dateStr);
+
+            let editorHtml = `
+                <div class="time-editor">
+                    <h4>Редактировать время</h4>
+                    <p><strong>${employee.fio}</strong></p>
+                    <p><strong>Дата:</strong> ${localDateStr}</p>
+            `;
+
+            if (timeEntries.length === 0) {
+                editorHtml += `
+                    <p>Записей времени не найдено для этой даты.</p>
+                    <div class="time-editor-buttons">
+                        <button class="time-cancel-btn" onclick="cancelTimeEdit()">Закрыть</button>
+                    </div>
+                `;
+            } else {
+                timeEntries.forEach((entry, index) => {
+                    const startTime = entry.start_time ? new Date(entry.start_time).toTimeString().slice(0, 5) : '';
+                    const endTime = entry.end_time ? new Date(entry.end_time).toTimeString().slice(0, 5) : '';
+
+                    editorHtml += `
+                        <div style="margin-bottom: 10px; padding: 8px; border: 1px solid #eee; border-radius: 4px;">
+                            <h5>Запись ${index + 1}</h5>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <div>
+                                    <label>Время прихода:</label>
+                                    <input type="time" id="startTime_${entry.id}" value="${startTime}">
+                                </div>
+                                <div>
+                                    <label>Время ухода:</label>
+                                    <input type="time" id="endTime_${entry.id}" value="${endTime}">
+                                </div>
+                                <button onclick="saveTimeEntry('${entry.id}', '${dateStr}')" style="padding: 4px 8px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">Сохранить</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            editorHtml += `
+                    <div class="time-editor-buttons">
+                        <button class="time-cancel-btn" onclick="cancelTimeEdit()">Закрыть</button>
+                    </div>
+                </div>
+            `;
+
+            // Find the clicked time element and append editor
+            const timeElements = document.querySelectorAll('.time-info');
+            let targetElement = null;
+            timeElements.forEach(element => {
+                if (element.onclick && element.onclick.toString().includes(employeeId) && element.onclick.toString().includes(dateStr)) {
+                    targetElement = element;
+                }
+            });
+
+            if (targetElement) {
+                targetElement.style.position = 'relative';
+                targetElement.insertAdjacentHTML('afterend', editorHtml);
+
+                // Position the editor to avoid overlapping
+                const editor = targetElement.nextElementSibling;
+                positionEditor(editor, targetElement);
+            }
+        }
+
+        // Save time entry
+        async function saveTimeEntry(entryId, dateStr) {
+            const startTimeInput = document.getElementById(`startTime_${entryId}`);
+            const endTimeInput = document.getElementById(`endTime_${entryId}`);
+
+            const startTime = startTimeInput.value;
+            const endTime = endTimeInput.value;
+
+            if (!startTime && !endTime) {
+                alert('Введите хотя бы одно время');
+                return;
+            }
+
+            // Create full datetime strings
+            const dateObj = new Date(dateStr + 'T00:00:00');
+            const startDateTime = startTime ? `${dateStr}T${startTime}:00` : null;
+            const endDateTime = endTime ? `${dateStr}T${endTime}:00` : null;
+
+            try {
+                const response = await fetch(`/time-entries/${entryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        start_time: startDateTime,
+                        end_time: endDateTime
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove editor and reload calendar
+                    const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+                    editors.forEach(editor => editor.remove());
+                    loadCalendarData();
+                } else {
+                    alert('Ошибка сохранения времени: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving time entry:', error);
+                alert('Ошибка сохранения времени');
+            }
+        }
+
+        // Cancel time edit
+        function cancelTimeEdit() {
+            const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+            editors.forEach(editor => editor.remove());
+        }
+
+        // Position editor to avoid overlapping
+        function positionEditor(editor, targetElement) {
+            const rect = targetElement.getBoundingClientRect();
+            const editorRect = editor.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // Default position: below the target
+            let top = rect.bottom + 5;
+            let left = rect.left;
+
+            // If it would go off the right edge, position it to the left
+            if (left + editorRect.width > viewportWidth) {
+                left = rect.right - editorRect.width;
+            }
+
+            // If it would go off the bottom edge, position it above
+            if (top + editorRect.height > viewportHeight) {
+                top = rect.top - editorRect.height - 5;
+            }
+
+            // Ensure it doesn't go off the left edge
+            if (left < 0) {
+                left = 5;
+            }
+
+            // Ensure it doesn't go off the top edge
+            if (top < 0) {
+                top = 5;
+            }
+
+            editor.style.position = 'fixed';
+            editor.style.top = top + 'px';
+            editor.style.left = left + 'px';
+            editor.style.zIndex = '1000';
+        }
+
+        // Edit shift
+        function editShift(userId, date, currentShiftType, currentHours) {
+            // Remove existing editors
+            const existingEditors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+            existingEditors.forEach(editor => editor.remove());
+
+            const employee = employees.find(emp => emp.id === userId);
+            if (!employee) return;
+
+            // Create date object from the date string and get local date string
+            const dateObj = new Date(date + 'T00:00:00');
+            const localDateStr = dateObj.toLocaleDateString();
+
+            const editorHtml = `
+                <div class="shift-editor">
+                    <h4>Редактировать смену</h4>
+                    <p><strong>${employee.fio}</strong></p>
+                    <p><strong>Дата:</strong> ${localDateStr}</p>
+                    <div>
+                        <label>Тип смены:</label>
+                        <select id="shiftType">
+                            <option value="working_day" ${currentShiftType === 'working_day' ? 'selected' : ''}>Рабочий день</option>
+                            <option value="day_off" ${currentShiftType === 'day_off' ? 'selected' : ''}>Выходной</option>
+                            <option value="time_off" ${currentShiftType === 'time_off' ? 'selected' : ''}>Отгул</option>
+                            <option value="sick_leave" ${currentShiftType === 'sick_leave' ? 'selected' : ''}>Больничный</option>
+                            <option value="vacation" ${currentShiftType === 'vacation' ? 'selected' : ''}>Отпуск</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Часы:</label>
+                        <input type="number" id="shiftHours" value="${currentHours}" min="0" max="24" step="0.5">
+                    </div>
+                    <div>
+                        <button class="save-btn" onclick="saveShift('${userId}', '${date}')">Сохранить</button>
+                        <button class="cancel-btn" onclick="cancelEdit()">Отмена</button>
+                    </div>
+                </div>
+            `;
+
+            // Find the clicked shift cell and append editor
+            const shiftCells = document.querySelectorAll('.shift-cell');
+            let targetCell = null;
+            shiftCells.forEach(cell => {
+                if (cell.onclick && cell.onclick.toString().includes(userId) && cell.onclick.toString().includes(date)) {
+                    targetCell = cell;
+                }
+            });
+
+            if (targetCell) {
+                targetCell.style.position = 'relative';
+                targetCell.insertAdjacentHTML('afterend', editorHtml);
+
+                // Position the editor to avoid overlapping
+                const editor = targetCell.nextElementSibling;
+                positionEditor(editor, targetCell);
+            }
+        }
+
+        // Save shift
+        async function saveShift(userId, date) {
+            const shiftType = document.getElementById('shiftType').value;
+            const hours = parseFloat(document.getElementById('shiftHours').value);
+
+            try {
+                const response = await fetch(`/schedule/${userId}/${date}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        shift_type: shiftType,
+                        hours: hours
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove editor and reload calendar
+                    const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+                    editors.forEach(editor => editor.remove());
+                    loadCalendarData();
+                } else {
+                    alert('Ошибка сохранения смены: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving shift:', error);
+                alert('Ошибка сохранения смены');
+            }
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+            editors.forEach(editor => editor.remove());
+        }
+
+        // Edit hours for a specific shift
+        function editHours(userId, date, plannedHours, actualHours) {
+            // Remove existing editors
+            const existingEditors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+            existingEditors.forEach(editor => editor.remove());
+
+            const employee = employees.find(emp => emp.id === userId);
+            if (!employee) return;
+
+            // Create date object from the date string and get local date string
+            const dateObj = new Date(date + 'T00:00:00');
+            const localDateStr = dateObj.toLocaleDateString();
+
+            const editorHtml = `
+                <div class="hours-editor">
+                    <div style="font-size: 12px; margin-bottom: 8px;">
+                        <strong>${employee.fio}</strong><br>
+                        ${localDateStr}
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label style="font-size: 11px;">Плановые часы:</label>
+                        <input type="number" id="plannedHoursInput" value="${plannedHours}" min="0" max="24" step="0.5" style="width: 60px;">
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 11px;">Фактические часы:</label>
+                        <input type="number" id="actualHoursInput" value="${actualHours}" min="0" max="24" step="0.5" style="width: 60px;">
+                    </div>
+                    <div class="hours-editor-buttons">
+                        <button class="hours-save-btn" onclick="saveHours('${userId}', '${date}')">Сохранить</button>
+                        <button class="hours-cancel-btn" onclick="cancelHoursEdit()">Отмена</button>
+                    </div>
+                </div>
+            `;
+
+            // Find the clicked hours element and append editor
+            const hoursElements = document.querySelectorAll('.shift-hours');
+            let targetElement = null;
+            hoursElements.forEach(element => {
+                if (element.onclick && element.onclick.toString().includes(userId) && element.onclick.toString().includes(date)) {
+                    targetElement = element;
+                }
+            });
+
+            if (targetElement) {
+                targetElement.style.position = 'relative';
+                targetElement.insertAdjacentHTML('afterend', editorHtml);
+
+                // Position the editor to avoid overlapping
+                const editor = targetElement.nextElementSibling;
+                positionEditor(editor, targetElement);
+            }
+        }
+
+        // Save edited hours
+        async function saveHours(userId, date) {
+            const plannedHours = parseFloat(document.getElementById('plannedHoursInput').value) || 0;
+            const actualHours = parseFloat(document.getElementById('actualHoursInput').value) || 0;
+
+            try {
+                const response = await fetch(`/schedule/${userId}/${date}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        shift_type: 'working_day', // Keep as working day when editing hours
+                        hours: plannedHours,
+                        actual_hours: actualHours
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove editor and reload calendar
+                    const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+                    editors.forEach(editor => editor.remove());
+                    loadCalendarData();
+                } else {
+                    alert('Ошибка сохранения часов: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving hours:', error);
+                alert('Ошибка сохранения часов');
+            }
+        }
+
+        // Cancel hours edit
+        function cancelHoursEdit() {
+            const editors = document.querySelectorAll('.shift-editor, .hours-editor, .time-editor');
+            editors.forEach(editor => editor.remove());
+        }
+
+        // Navigate to previous month
+        function previousMonth() {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+            loadCalendarData();
+        }
+
+        // Navigate to next month
+        function nextMonth() {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+            loadCalendarData();
+        }
+
+        // Navigate to previous planning month
+        function previousPlanningMonth() {
+            currentPlanningDate.setMonth(currentPlanningDate.getMonth() - 1);
+            loadPlanningData();
+        }
+
+        // Navigate to next planning month
+        function nextPlanningMonth() {
+            currentPlanningDate.setMonth(currentPlanningDate.getMonth() + 1);
+            loadPlanningData();
+        }
+
+        // Set quick period (today, week, month, etc.)
+        function setPeriod(periodType) {
+            const today = new Date();
+            let startDate, endDate;
+
+            switch (periodType) {
+                case 'today':
+                    startDate = new Date(today);
+                    endDate = new Date(today);
+                    break;
+                case 'week':
+                    startDate = new Date(today);
+                    startDate.setDate(today.getDate() - today.getDay() + 1); // Monday of current week
+                    endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + 6); // Sunday of current week
+                    break;
+                case 'month':
+                    startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    break;
+                case 'quarter':
+                    const quarterStart = Math.floor(today.getMonth() / 3) * 3;
+                    startDate = new Date(today.getFullYear(), quarterStart, 1);
+                    endDate = new Date(today.getFullYear(), quarterStart + 3, 0);
+                    break;
+                case 'year':
+                    startDate = new Date(today.getFullYear(), 0, 1);
+                    endDate = new Date(today.getFullYear(), 11, 31);
+                    break;
+                default:
+                    return;
+            }
+
+            // Update input fields
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+
+            // Update active button
+            document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Load report for this period
+            loadCustomReport();
+        }
+
+        // Load custom report with date range
+        async function loadCustomReport() {
+            const startDateValue = document.getElementById('startDate').value;
+            const endDateValue = document.getElementById('endDate').value;
+
+            if (!startDateValue || !endDateValue) {
+                alert('Пожалуйста, выберите даты начала и окончания');
+                return;
+            }
+
+            const startDate = new Date(startDateValue);
+            const endDate = new Date(endDateValue);
+
+            if (startDate > endDate) {
+                alert('Дата начала не может быть позже даты окончания');
+                return;
+            }
+
+            try {
+                console.log('Loading custom report:', startDateValue, 'to', endDateValue);
+                const response = await fetch(`/reports?start_date=${startDateValue}&end_date=${endDateValue}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    reportData = result.report;
+                    currentStartDate = startDateValue;
+                    currentEndDate = endDateValue;
+                    isCustomPeriod = true;
+                    renderReportTable();
+                } else {
+                    document.getElementById('reportsTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки отчета: ' + result.message + '</div>';
+                }
+            } catch (error) {
+                console.error('Error loading custom report:', error);
+                document.getElementById('reportsTable').innerHTML =
+                    '<div class="loading">Ошибка загрузки отчета</div>';
+            }
+        }
+
+        // Load report data for current month (fallback)
+        async function loadReportData() {
+            if (isCustomPeriod && currentStartDate && currentEndDate) {
+                // Load custom period
+                loadCustomReport();
+            } else {
+                // Load monthly report
+                try {
+                    const year = currentReportDate.getFullYear();
+                    const month = currentReportDate.getMonth() + 1;
+
+                    const response = await fetch(`/reports?year=${year}&month=${month}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        reportData = result.report;
+                        isCustomPeriod = false;
+                        renderReportTable();
+                    } else {
+                        document.getElementById('reportsTable').innerHTML =
+                            '<div class="loading">Ошибка загрузки отчета</div>';
+                    }
+                } catch (error) {
+                    console.error('Error loading report data:', error);
+                    document.getElementById('reportsTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки отчета</div>';
+                }
+            }
+        }
+
+        // Render report table
+        function renderReportTable() {
+            // Update report title based on period type
+            if (isCustomPeriod && currentStartDate && currentEndDate) {
+                const start = new Date(currentStartDate);
+                const end = new Date(currentEndDate);
+                const startStr = start.toLocaleDateString('ru-RU');
+                const endStr = end.toLocaleDateString('ru-RU');
+                document.getElementById('reportTitle').textContent = `Период: ${startStr} - ${endStr}`;
+            } else {
+                const year = currentReportDate.getFullYear();
+                const month = currentReportDate.getMonth();
+                const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                                  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+                document.getElementById('reportTitle').textContent = `${monthNames[month]} ${year}`;
+            }
+
+            // Calculate totals
+            let totalWorkingShifts = 0;
+            let totalHours = 0;
+            let totalTimeOff = 0;
+            let totalVacation = 0;
+            let totalSickLeave = 0;
+
+            Object.values(reportData).forEach(employeeReport => {
+                totalWorkingShifts += employeeReport.working_shifts;
+                totalHours += employeeReport.total_hours;
+                totalTimeOff += employeeReport.time_off_days;
+                totalVacation += employeeReport.vacation_days;
+                totalSickLeave += employeeReport.sick_leave_days;
+            });
+
+            // Create summary section
+            let html = `
+                <div class="report-summary">
+                    <div class="summary-item">
+                        <div class="summary-value">${totalWorkingShifts}</div>
+                        <div class="summary-label">Рабочих смен</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${totalHours.toFixed(1)}ч</div>
+                        <div class="summary-label">Рабочих часов</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${totalTimeOff}</div>
+                        <div class="summary-label">Отгулов</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${totalVacation}</div>
+                        <div class="summary-label">Дней отпуска</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${totalSickLeave}</div>
+                        <div class="summary-label">Больничных</div>
+                    </div>
+                </div>
+            `;
+
+            // Create table
+            html += '<div class="reports-table" style="display: table; border-collapse: collapse; width: 100%;">';
+            html += '<div class="report-employee-row report-header">';
+            html += '<div class="report-employee-cell">Сотрудник</div>';
+            html += '<div class="report-data-cell">Рабочие<br>смены</div>';
+            html += '<div class="report-data-cell">Рабочие<br>часы</div>';
+            html += '<div class="report-data-cell">Отгулы</div>';
+            html += '<div class="report-data-cell">Отпуск</div>';
+            html += '<div class="report-data-cell">Больничные</div>';
+            html += '</div>';
+
+            // Employee rows
+            Object.values(reportData).forEach(employeeReport => {
+                html += '<div class="report-employee-row">';
+                html += `<div class="report-employee-cell">${employeeReport.employee.fio}</div>`;
+                html += `<div class="report-data-cell">${employeeReport.working_shifts}</div>`;
+                html += `<div class="report-data-cell">${employeeReport.total_hours.toFixed(1)}ч</div>`;
+                html += `<div class="report-data-cell">${employeeReport.time_off_days}</div>`;
+                html += `<div class="report-data-cell">${employeeReport.vacation_days}</div>`;
+                html += `<div class="report-data-cell">${employeeReport.sick_leave_days}</div>`;
+                html += '</div>';
+            });
+
+            html += '</div>';
+
+            document.getElementById('reportsTable').innerHTML = html;
+        }
+
+        // Navigate to previous report month/period
+        function previousReportMonth() {
+            if (isCustomPeriod && currentStartDate && currentEndDate) {
+                // For custom periods, shift by the same duration
+                const start = new Date(currentStartDate);
+                const end = new Date(currentEndDate);
+                const duration = end - start;
+
+                const newEnd = new Date(start);
+                const newStart = new Date(newEnd.getTime() - duration);
+
+                document.getElementById('startDate').value = newStart.toISOString().split('T')[0];
+                document.getElementById('endDate').value = newEnd.toISOString().split('T')[0];
+
+                loadCustomReport();
+            } else {
+                // For monthly periods, navigate by month
+                currentReportDate.setMonth(currentReportDate.getMonth() - 1);
+                loadReportData();
+            }
+        }
+
+        // Navigate to next report month/period
+        function nextReportMonth() {
+            if (isCustomPeriod && currentStartDate && currentEndDate) {
+                // For custom periods, shift by the same duration
+                const start = new Date(currentStartDate);
+                const end = new Date(currentEndDate);
+                const duration = end - start;
+
+                const newStart = new Date(end);
+                newStart.setDate(newStart.getDate() + 1);
+                const newEnd = new Date(newStart.getTime() + duration);
+
+                document.getElementById('startDate').value = newStart.toISOString().split('T')[0];
+                document.getElementById('endDate').value = newEnd.toISOString().split('T')[0];
+
+                loadCustomReport();
+            } else {
+                // For monthly periods, navigate by month
+                currentReportDate.setMonth(currentReportDate.getMonth() + 1);
+                loadReportData();
+            }
+        }
+
+        // Download report as Excel file
+        function downloadReportExcel() {
+            let url;
+
+            if (isCustomPeriod && currentStartDate && currentEndDate) {
+                // Custom date range
+                url = `/reports/export?start_date=${currentStartDate}&end_date=${currentEndDate}`;
+            } else {
+                // Monthly report (fallback)
+                const year = currentReportDate.getFullYear();
+                const month = currentReportDate.getMonth() + 1;
+                url = `/reports/export?year=${year}&month=${month}`;
+            }
+
+            // Create a temporary link to download the file
+            const link = document.createElement('a');
+            link.href = url;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Load employee list for dropdown
+        async function loadEmployeeList() {
+            try {
+                const response = await fetch('/users');
+                const result = await response.json();
+
+                if (result.success) {
+                    const employeeSelect = document.getElementById('employeeSelect');
+                    employeeSelect.innerHTML = '<option value="">Выберите сотрудника...</option>';
+
+                    // Filter only employees (not administrators)
+                    const employees = result.users.filter(user => user.role === 'employee');
+
+                    employees.forEach(employee => {
+                        const option = document.createElement('option');
+                        option.value = employee.id;
+                        option.textContent = employee.fio;
+                        employeeSelect.appendChild(option);
+                    });
+                } else {
+                    console.error('Error loading employees:', result.message);
+                }
+            } catch (error) {
+                console.error('Error loading employee list:', error);
+            }
+        }
+
+        // Load employee detailed report
+        async function loadEmployeeReport() {
+            const employeeId = document.getElementById('employeeSelect').value;
+            if (!employeeId) {
+                alert('Пожалуйста, выберите сотрудника');
+                return;
+            }
+
+            try {
+                document.getElementById('employeeReportTable').innerHTML =
+                    '<div class="loading">Загрузка отчета...</div>';
+
+                const response = await fetch(`/reports/employee/${employeeId}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    displayEmployeeReport(result.employee, result.report);
+                } else {
+                    document.getElementById('employeeReportTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки отчета: ' + result.message + '</div>';
+                }
+            } catch (error) {
+                console.error('Error loading employee report:', error);
+                document.getElementById('employeeReportTable').innerHTML =
+                    '<div class="loading">Ошибка загрузки отчета</div>';
+            }
+        }
+
+        // Display employee report
+        function displayEmployeeReport(employee, reportData) {
+            let html = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin: 0; color: #333;">Отчет по сотруднику: ${employee.fio}</h4>
+                    <p style="margin: 5px 0 0 0; color: #666;">Email: ${employee.email}</p>
+                    <button onclick="showAddShiftDialog('${employee.id}', '${employee.fio}')" style="margin-top: 10px; padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        ➕ Добавить смену
+                    </button>
+                </div>
+            `;
+
+            if (reportData.length === 0) {
+                html += `<div class="loading">У сотрудника ${employee.fio} нет записей времени</div>`;
+                document.getElementById('employeeReportTable').innerHTML = html;
+                return;
+            }
+
+            html += `
+                <div style="display: table; border-collapse: collapse; width: 100%; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="display: table-header-group; background: #f8f9fa;">
+                        <div style="display: table-row;">
+                            <div style="display: table-cell; padding: 12px; font-weight: bold; border-bottom: 2px solid #dee2e6;">Дата</div>
+                            <div style="display: table-cell; padding: 12px; font-weight: bold; border-bottom: 2px solid #dee2e6;">Время прихода</div>
+                            <div style="display: table-cell; padding: 12px; font-weight: bold; border-bottom: 2px solid #dee2e6;">Время ухода</div>
+                            <div style="display: table-cell; padding: 12px; font-weight: bold; border-bottom: 2px solid #dee2e6;">Длительность</div>
+                            <div style="display: table-cell; padding: 12px; font-weight: bold; border-bottom: 2px solid #dee2e6;">Действия</div>
+                        </div>
+                    </div>
+                    <div style="display: table-row-group;">
+            `;
+
+            reportData.forEach(dayData => {
+                const dateObj = new Date(dayData.date);
+                const formattedDate = dateObj.toLocaleDateString('ru-RU');
+
+                dayData.entries.forEach((entry, index) => {
+                    const startTime = entry.start_time ? new Date(entry.start_time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '-';
+                    const endTime = entry.end_time ? new Date(entry.end_time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '-';
+                    const duration = entry.duration_minutes ?
+                        `${Math.floor(entry.duration_minutes / 60)}ч ${Math.round(entry.duration_minutes % 60)}м` : '-';
+
+                    html += `
+                        <div style="display: table-row; ${index > 0 ? 'border-top: 1px solid #eee;' : ''}">
+                            ${index === 0 ? `<div style="display: table-cell; padding: 12px; vertical-align: top; font-weight: bold; background: #f8f9fa;" rowspan="${dayData.entries.length}">${formattedDate}</div>` : ''}
+                            <div style="display: table-cell; padding: 12px; cursor: pointer;" onclick="editEmployeeReportTime('${entry.id}', '${entry.start_time || ''}', '${entry.end_time || ''}')" title="Нажмите для редактирования">${startTime}</div>
+                            <div style="display: table-cell; padding: 12px; cursor: pointer;" onclick="editEmployeeReportTime('${entry.id}', '${entry.start_time || ''}', '${entry.end_time || ''}')" title="Нажмите для редактирования">${endTime}</div>
+                            <div style="display: table-cell; padding: 12px;">${duration}</div>
+                            <div style="display: table-cell; padding: 12px;">
+                                <button onclick="deleteTimeEntry('${entry.id}')" style="padding: 4px 8px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">Удалить</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Add total for the day
+                if (dayData.entries.length > 1) {
+                    const totalDuration = dayData.total_duration ?
+                        `${Math.floor(dayData.total_duration / 60)}ч ${Math.round(dayData.total_duration % 60)}м` : '-';
+
+                    html += `
+                        <div style="display: table-row; background: #e9ecef; border-top: 2px solid #dee2e6;">
+                            <div style="display: table-cell; padding: 8px; font-weight: bold; text-align: center;" colspan="4">Итого за день:</div>
+                            <div style="display: table-cell; padding: 8px; font-weight: bold;">${totalDuration}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('employeeReportTable').innerHTML = html;
+        }
+
+        // Edit time entry in employee report
+        function editEmployeeReportTime(entryId, startTime, endTime) {
+            // Remove existing editors
+            const existingEditors = document.querySelectorAll('.time-editor, .shift-editor, .hours-editor');
+            existingEditors.forEach(editor => editor.remove());
+
+            const editorHtml = `
+                <div class="time-editor">
+                    <h4>Редактировать время</h4>
+                    <div style="margin-bottom: 10px;">
+                        <label>Время прихода:</label>
+                        <input type="time" id="editStartTime" value="${startTime ? new Date(startTime).toTimeString().slice(0, 5) : ''}">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Время ухода:</label>
+                        <input type="time" id="editEndTime" value="${endTime ? new Date(endTime).toTimeString().slice(0, 5) : ''}">
+                    </div>
+                    <div class="time-editor-buttons">
+                        <button class="time-save-btn" onclick="saveEmployeeReportTime('${entryId}')">Сохранить</button>
+                        <button class="time-cancel-btn" onclick="cancelTimeEdit()">Отмена</button>
+                    </div>
+                </div>
+            `;
+
+            // Find a suitable place to append the editor (after the table)
+            const tableContainer = document.getElementById('employeeReportTable');
+            tableContainer.insertAdjacentHTML('beforeend', editorHtml);
+
+            // Position the editor
+            const editor = tableContainer.querySelector('.time-editor');
+            positionEditor(editor, tableContainer);
+        }
+
+        // Save edited time entry from employee report
+        async function saveEmployeeReportTime(entryId) {
+            const startTimeInput = document.getElementById('editStartTime');
+            const endTimeInput = document.getElementById('editEndTime');
+
+            const startTime = startTimeInput.value;
+            const endTime = endTimeInput.value;
+
+            if (!startTime && !endTime) {
+                alert('Введите хотя бы одно время');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/time-entries/${entryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        start_time: startTime ? `${new Date().toISOString().split('T')[0]}T${startTime}:00` : null,
+                        end_time: endTime ? `${new Date().toISOString().split('T')[0]}T${endTime}:00` : null
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove editor and reload employee report
+                    const editors = document.querySelectorAll('.time-editor, .shift-editor, .hours-editor');
+                    editors.forEach(editor => editor.remove());
+                    loadEmployeeReport(); // Reload the current employee report
+                } else {
+                    alert('Ошибка сохранения времени: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving time entry:', error);
+                alert('Ошибка сохранения времени');
+            }
+        }
+
+        // Delete time entry
+        async function deleteTimeEntry(entryId) {
+            if (!confirm('Вы уверены, что хотите удалить эту запись времени?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/time-entries/${entryId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    loadEmployeeReport(); // Reload the current employee report
+                } else {
+                    alert('Ошибка удаления записи: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error deleting time entry:', error);
+                alert('Ошибка удаления записи');
+            }
+        }
+
+        // Show dialog for adding new shift
+        function showAddShiftDialog(employeeId, employeeName) {
+            // Remove existing editors
+            const existingEditors = document.querySelectorAll('.time-editor, .shift-editor, .hours-editor');
+            existingEditors.forEach(editor => editor.remove());
+
+            const today = new Date().toISOString().split('T')[0];
+
+            const editorHtml = `
+                <div class="time-editor">
+                    <h4>Добавить новую смену</h4>
+                    <p><strong>Сотрудник:</strong> ${employeeName}</p>
+                    <div style="margin-bottom: 10px;">
+                        <label>Дата:</label>
+                        <input type="date" id="newShiftDate" value="${today}" required>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label>Время прихода:</label>
+                        <input type="time" id="newStartTime" required>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Время ухода:</label>
+                        <input type="time" id="newEndTime">
+                    </div>
+                    <div class="time-editor-buttons">
+                        <button class="time-save-btn" onclick="createNewShift('${employeeId}')">Создать</button>
+                        <button class="time-cancel-btn" onclick="cancelTimeEdit()">Отмена</button>
+                    </div>
+                </div>
+            `;
+
+            // Find a suitable place to append the editor (after the table)
+            const tableContainer = document.getElementById('employeeReportTable');
+            tableContainer.insertAdjacentHTML('beforeend', editorHtml);
+
+            // Position the editor
+            const editor = tableContainer.querySelector('.time-editor');
+            positionEditor(editor, tableContainer);
+        }
+
+        // Create new shift
+        async function createNewShift(employeeId) {
+            const dateInput = document.getElementById('newShiftDate');
+            const startTimeInput = document.getElementById('newStartTime');
+            const endTimeInput = document.getElementById('newEndTime');
+
+            const date = dateInput.value;
+            const startTime = startTimeInput.value;
+            const endTime = endTimeInput.value;
+
+            if (!date || !startTime) {
+                alert('Пожалуйста, заполните дату и время прихода');
+                return;
+            }
+
+            try {
+                const response = await fetch('/time-entries/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: employeeId,
+                        start_time: `${date}T${startTime}:00`,
+                        end_time: endTime ? `${date}T${endTime}:00` : null
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove editor and reload employee report
+                    const editors = document.querySelectorAll('.time-editor, .shift-editor, .hours-editor');
+                    editors.forEach(editor => editor.remove());
+                    loadEmployeeReport(); // Reload the current employee report
+                } else {
+                    alert('Ошибка создания смены: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error creating new shift:', error);
+                alert('Ошибка создания смены');
+            }
+        }
+
+        // Show report sub-tab
+        function showReportSubtab(subtabName) {
+            // Hide all sub-tab contents
+            document.querySelectorAll('.report-subtab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all sub-tabs
+            document.querySelectorAll('.report-subtab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected sub-tab content
+            document.getElementById(subtabName + 'ReportTab').classList.add('active');
+
+            // Add active class to clicked sub-tab
+            event.target.classList.add('active');
+
+            // Load data for the selected sub-tab
+            if (subtabName === 'monthly') {
+                loadReportData();
+            } else if (subtabName === 'absences') {
+                loadAbsenceReportData();
+            } else if (subtabName === 'employee') {
+                loadEmployeeList();
+            }
+        }
+
+        // Load absence report data for current year
+        async function loadAbsenceReportData() {
+            try {
+                const year = new Date().getFullYear(); // Always use current year
+
+                const response = await fetch(`/reports/absences?year=${year}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    absenceReportData = result.report;
+                    renderAbsenceReportTable();
+                } else {
+                    document.getElementById('absenceReportsTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки отчета об отсутствиях</div>';
+                }
+            } catch (error) {
+                console.error('Error loading absence report data:', error);
+                document.getElementById('absenceReportsTable').innerHTML =
+                    '<div class="loading">Ошибка загрузки отчета об отсутствиях</div>';
+            }
+        }
+
+        // Render absence report table
+        function renderAbsenceReportTable() {
+            const year = new Date().getFullYear(); // Always use current year
+
+            // Update absence title
+            document.getElementById('absenceTitle').textContent = `${year} год`;
+
+            // Create table HTML
+            let html = '<div class="absence-reports-table" style="display: table; border-collapse: collapse; width: 100%;">';
+
+            // Header row
+            html += '<div class="absence-employee-row absence-header">';
+            html += '<div class="absence-employee-cell absence-header-cell">Сотрудник</div>';
+            html += '<div class="absence-data-cell absence-header-cell">Отгулы</div>';
+            html += '<div class="absence-data-cell absence-header-cell">Отпуск</div>';
+            html += '<div class="absence-data-cell absence-header-cell">Больничные</div>';
+            html += '</div>';
+
+            // Check if we have data
+            if (!absenceReportData || Object.keys(absenceReportData).length === 0) {
+                html += '<div class="absence-employee-row">';
+                html += '<div class="absence-employee-cell" colspan="4" style="text-align: center; padding: 40px;">Нет данных об отсутствиях за текущий год</div>';
+                html += '</div>';
+            } else {
+                // Employee rows
+                Object.values(absenceReportData).forEach(employeeData => {
+                    html += '<div class="absence-employee-row">';
+                    html += `<div class="absence-employee-cell">${employeeData.employee.fio}</div>`;
+
+                    // Time off column
+                    html += '<div class="absence-data-cell">';
+                    html += '<div class="absence-type">Отгулы</div>';
+                    html += `<div class="absence-count">${employeeData.time_off.count} дней</div>`;
+                    if (employeeData.time_off.dates.length > 0) {
+                        html += '<div class="absence-dates-list">';
+                        html += '<div class="absence-dates">';
+                        employeeData.time_off.dates.forEach(date => {
+                            const dateObj = new Date(date);
+                            const formattedDate = dateObj.toLocaleDateString('ru-RU');
+                            html += `${formattedDate}<br>`;
+                        });
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+
+                    // Vacation column
+                    html += '<div class="absence-data-cell">';
+                    html += '<div class="absence-type">Отпуск</div>';
+                    html += `<div class="absence-count">${employeeData.vacation.count} дней</div>`;
+                    if (employeeData.vacation.dates.length > 0) {
+                        html += '<div class="absence-dates-list">';
+                        html += '<div class="absence-dates">';
+                        employeeData.vacation.dates.forEach(date => {
+                            const dateObj = new Date(date);
+                            const formattedDate = dateObj.toLocaleDateString('ru-RU');
+                            html += `${formattedDate}<br>`;
+                        });
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+
+                    // Sick leave column
+                    html += '<div class="absence-data-cell">';
+                    html += '<div class="absence-type">Больничные</div>';
+                    html += `<div class="absence-count">${employeeData.sick_leave.count} дней</div>`;
+                    if (employeeData.sick_leave.dates.length > 0) {
+                        html += '<div class="absence-dates-list">';
+                        html += '<div class="absence-dates">';
+                        employeeData.sick_leave.dates.forEach(date => {
+                            const dateObj = new Date(date);
+                            const formattedDate = dateObj.toLocaleDateString('ru-RU');
+                            html += `${formattedDate}<br>`;
+                        });
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+
+                    html += '</div>';
+                });
+
+                html += '</div>';
+
+                document.getElementById('absenceReportsTable').innerHTML = html;
+            }
+        }
+
+
+        // Download absence report as Excel file
+        function downloadAbsenceReportExcel() {
+            const year = new Date().getFullYear(); // Always use current year
+
+            // Create a temporary link to download the file
+            const link = document.createElement('a');
+            link.href = `/reports/absences/export?year=${year}`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Render planning table
+        function renderPlanningTable() {
+            const year = currentPlanningDate.getFullYear();
+            const month = currentPlanningDate.getMonth();
+
+            // Update planning title
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                              'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            document.getElementById('planningTitle').textContent = `${monthNames[month]} ${year}`;
+
+            // Get all dates for the month
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const dates = [];
+
+            for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
+                dates.push(new Date(date));
+            }
+
+            // Create table HTML
+            let tableHtml = '<div class="schedule-table">';
+
+            // Header row with dates
+            tableHtml += '<div class="schedule-row">';
+            tableHtml += '<div class="employee-cell">Сотрудник</div>';
+
+            dates.forEach(date => {
+                const dayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][date.getDay()];
+                tableHtml += `<div class="date-header">${date.getDate()}<br><small>${dayName}</small></div>`;
+            });
+
+            tableHtml += '</div>';
+
+            // Employee rows
+            employees.forEach(employee => {
+                tableHtml += '<div class="schedule-row">';
+                tableHtml += `<div class="employee-cell">${employee.fio}</div>`;
+
+                dates.forEach(date => {
+                    const dateStr = date.getFullYear() + '-' +
+                                    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                                    String(date.getDate()).padStart(2, '0');
+                    const employeePlanning = planningData[employee.id] || {};
+                    const dayPlanning = employeePlanning[dateStr] || { shift_type: 'working_day', hours: 8 };
+
+                    const cellContent = `
+                        <div class="planning-cell" data-employee="${employee.id}" data-date="${dateStr}"
+                             ondblclick="quickSetDayOff('${employee.id}', '${dateStr}')">
+                            <div class="shift-cell ${dayPlanning.shift_type}"
+                                  onclick="showPlanningDropdown('${employee.id}', '${dateStr}', '${dayPlanning.shift_type}', ${dayPlanning.hours})">
+                                <span class="shift-hours">${dayPlanning.hours}ч</span>
+                            </div>
+                        </div>
+                    `;
+
+                    tableHtml += `<div class="schedule-cell">${cellContent}</div>`;
+                });
+
+                tableHtml += '</div>';
+            });
+
+            tableHtml += '</div>';
+
+            document.getElementById('planningTable').innerHTML = tableHtml;
+
+            // Add drag functionality
+            setupDragFunctionality();
+        }
+
+        // Show planning dropdown
+        function showPlanningDropdown(employeeId, date, currentShiftType, currentHours) {
+            // Remove existing dropdowns
+            document.querySelectorAll('.planning-dropdown').forEach(dropdown => dropdown.remove());
+
+            const cell = document.querySelector(`[data-employee="${employeeId}"][data-date="${date}"]`);
+            if (!cell) return;
+
+            const dropdownHtml = `
+                <div class="planning-dropdown">
+                    <select onchange="updatePlanningShift('${employeeId}', '${date}', this.value)">
+                        <option value="working_day" ${currentShiftType === 'working_day' ? 'selected' : ''}>Рабочий день</option>
+                        <option value="day_off" ${currentShiftType === 'day_off' ? 'selected' : ''}>Выходной</option>
+                        <option value="time_off" ${currentShiftType === 'time_off' ? 'selected' : ''}>Отгул</option>
+                        <option value="sick_leave" ${currentShiftType === 'sick_leave' ? 'selected' : ''}>Больничный</option>
+                        <option value="vacation" ${currentShiftType === 'vacation' ? 'selected' : ''}>Отпуск</option>
+                    </select>
+                    <input type="number" id="planningHours" value="${currentHours}" min="0" max="24" step="0.5" style="width: 60px; margin-left: 5px;">
+                    <button onclick="savePlanningShift('${employeeId}', '${date}')" style="margin-left: 5px;">OK</button>
+                </div>
+            `;
+
+            cell.insertAdjacentHTML('beforeend', dropdownHtml);
+            const dropdown = cell.querySelector('.planning-dropdown');
+            dropdown.style.display = 'block';
+
+            // Focus on the select element
+            const select = dropdown.querySelector('select');
+            select.focus();
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!cell.contains(e.target)) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }
+
+        // Save planning shift (called when OK button is clicked)
+        function savePlanningShift(employeeId, date) {
+            const dropdown = document.querySelector('.planning-dropdown');
+            if (!dropdown) return;
+
+            const select = dropdown.querySelector('select');
+            const hoursInput = dropdown.querySelector('#planningHours');
+
+            const shiftType = select.value;
+            const hours = parseFloat(hoursInput.value) || 0;
+
+            if (!planningData[employeeId]) {
+                planningData[employeeId] = {};
+            }
+
+            planningData[employeeId][date] = {
+                shift_type: shiftType,
+                hours: hours
+            };
+
+            // Update the cell display
+            const cell = document.querySelector(`[data-employee="${employeeId}"][data-date="${date}"] .shift-cell`);
+            if (cell) {
+                cell.className = `shift-cell ${shiftType}`;
+                cell.querySelector('.shift-hours').textContent = `${hours}ч`;
+            }
+
+            // Remove dropdown
+            dropdown.remove();
+        }
+
+        // Update planning shift (for drag operations)
+        function updatePlanningShift(employeeId, date, shiftType) {
+            if (!planningData[employeeId]) {
+                planningData[employeeId] = {};
+            }
+
+            const hours = shiftType === 'working_day' ? 8 :
+                          shiftType === 'day_off' ? 0 :
+                          shiftType === 'time_off' ? 0 :
+                          shiftType === 'sick_leave' ? 0 :
+                          shiftType === 'vacation' ? 0 : 8;
+
+            planningData[employeeId][date] = {
+                shift_type: shiftType,
+                hours: hours
+            };
+
+            // Update the cell display
+            const cell = document.querySelector(`[data-employee="${employeeId}"][data-date="${date}"] .shift-cell`);
+            if (cell) {
+                cell.className = `shift-cell ${shiftType}`;
+                cell.querySelector('.shift-hours').textContent = `${hours}ч`;
+            }
+        }
+
+        // Quick set day off with double click
+        function quickSetDayOff(employeeId, date) {
+            if (!planningData[employeeId]) {
+                planningData[employeeId] = {};
+            }
+
+            // Set as day off with 0 hours
+            planningData[employeeId][date] = {
+                shift_type: 'day_off',
+                hours: 0
+            };
+
+            // Update the cell display
+            const cell = document.querySelector(`[data-employee="${employeeId}"][data-date="${date}"] .shift-cell`);
+            if (cell) {
+                cell.className = 'shift-cell day_off';
+                cell.querySelector('.shift-hours').textContent = '0ч';
+            }
+        }
+
+        // Setup drag functionality for planning
+        function setupDragFunctionality() {
+            const cells = document.querySelectorAll('.planning-cell');
+
+            cells.forEach(cell => {
+                cell.addEventListener('mousedown', startDrag);
+                cell.addEventListener('mouseenter', dragOver);
+                cell.addEventListener('mouseup', endDrag);
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    endDrag();
+                }
+            });
+        }
+
+        // Start drag operation
+        function startDrag(e) {
+            const cell = e.target.closest('.planning-cell');
+            if (!cell) return;
+
+            isDragging = true;
+            dragStartCell = cell;
+            const employeeId = cell.dataset.employee;
+            const date = cell.dataset.date;
+
+            // Get the shift type from the current cell
+            const employeePlanning = planningData[employeeId] || {};
+            const dayPlanning = employeePlanning[date] || { shift_type: 'working_day', hours: 8 };
+            dragShiftType = dayPlanning.shift_type;
+
+            cell.classList.add('selected');
+        }
+
+        // Drag over cell
+        function dragOver(e) {
+            if (!isDragging) return;
+
+            const cell = e.target.closest('.planning-cell');
+            if (!cell || cell === dragStartCell) return;
+
+            // Only allow dragging within the same employee row
+            if (cell.dataset.employee !== dragStartCell.dataset.employee) return;
+
+            cell.classList.add('selected');
+        }
+
+        // End drag operation
+        function endDrag() {
+            if (!isDragging) return;
+
+            const selectedCells = document.querySelectorAll('.planning-cell.selected');
+            const employeeId = dragStartCell.dataset.employee;
+
+            selectedCells.forEach(cell => {
+                if (cell !== dragStartCell) {
+                    const date = cell.dataset.date;
+                    updatePlanningShift(employeeId, date, dragShiftType);
+                }
+                cell.classList.remove('selected');
+            });
+
+            dragStartCell.classList.remove('selected');
+            isDragging = false;
+            dragStartCell = null;
+            dragShiftType = '';
+        }
+
+        // Load all users for employees management
+        async function loadAllUsers() {
+            try {
+                console.log('Loading all users...');
+                const response = await fetch('/users');
+                const result = await response.json();
+
+                if (result.success) {
+                    displayAllUsers(result.users);
+                } else {
+                    document.getElementById('employeesTable').innerHTML =
+                        '<div class="loading">Ошибка загрузки пользователей</div>';
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('employeesTable').innerHTML =
+                    '<div class="loading">Ошибка загрузки пользователей</div>';
+            }
+        }
+
+        // Display all users in a table
+        function displayAllUsers(users) {
+            if (users.length === 0) {
+                document.getElementById('employeesTable').innerHTML =
+                    '<div class="loading">Пользователи не найдены</div>';
+                return;
+            }
+
+            let html = '<div class="employees-table" style="display: table; border-collapse: collapse; width: 100%;">';
+
+            // Header row
+            html += '<div class="employee-row employee-header">';
+            html += '<div class="employee-cell">ФИО</div>';
+            html += '<div class="employee-cell">Email</div>';
+            html += '<div class="employee-cell">Телефон</div>';
+            html += '<div class="employee-cell">Дата рождения</div>';
+            html += '<div class="employee-cell">Роль</div>';
+            html += '<div class="employee-cell">Дата регистрации</div>';
+            html += '<div class="employee-cell">Действия</div>';
+            html += '</div>';
+
+            // User rows
+            users.forEach(user => {
+                const birthdate = user.birthdate ? new Date(user.birthdate).toLocaleDateString('ru-RU') : '-';
+                const createdAt = new Date(user.created_at).toLocaleDateString('ru-RU');
+                const roleClass = user.role === 'administrator' ? 'role-admin' : 'role-employee';
+                const roleText = user.role === 'administrator' ? 'Администратор' : 'Сотрудник';
+
+                html += '<div class="employee-row">';
+                html += `<div class="employee-cell">${user.fio}</div>`;
+                html += `<div class="employee-cell">${user.email}</div>`;
+                html += `<div class="employee-cell">${user.mobile || '-'}</div>`;
+                html += `<div class="employee-cell">${birthdate}</div>`;
+                html += `<div class="employee-cell"><span class="role-badge ${roleClass}">${roleText}</span></div>`;
+                html += `<div class="employee-cell">${createdAt}</div>`;
+                html += '<div class="employee-cell employee-actions">';
+
+                // Only show actions for non-admin users or if it's not the current user
+                if (user.id !== currentUser.id) {
+                    if (user.role !== 'administrator') {
+                        html += `<button class="btn-action btn-promote" onclick="promoteToAdmin('${user.id}')">Сделать админом</button>`;
+                    }
+                    html += `<button class="btn-action btn-delete" onclick="deleteUser('${user.id}', '${user.fio}')">Удалить</button>`;
+                } else {
+                    html += '<span style="color: #6c757d; font-style: italic;">Текущий пользователь</span>';
+                }
+
+                html += '</div>';
+                html += '</div>';
+            });
+
+            html += '</div>';
+            document.getElementById('employeesTable').innerHTML = html;
+        }
+
+        // Delete a user
+        async function deleteUser(userId, userName) {
+            if (!confirm(`Вы уверены, что хотите удалить пользователя "${userName}"? Это действие нельзя отменить.`)) {
+                return;
+            }
+
+            try {
+                console.log('Deleting user:', userId);
+                const response = await fetch(`/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Пользователь успешно удален');
+                    loadAllUsers(); // Refresh the list
+                } else {
+                    alert('Ошибка удаления пользователя: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Ошибка при удалении пользователя');
+            }
+        }
+
+        // Promote user to administrator
+        async function promoteToAdmin(userId) {
+            if (!confirm('Вы уверены, что хотите сделать этого пользователя администратором?')) {
+                return;
+            }
+
+            try {
+                console.log('Promoting user to admin:', userId);
+                const response = await fetch(`/users/${userId}/role`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ role: 'administrator' })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Пользователь успешно повышен до администратора');
+                    loadAllUsers(); // Refresh the list
+                } else {
+                    alert('Ошибка изменения роли: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error promoting user:', error);
+                alert('Ошибка при изменении роли пользователя');
+            }
+        }
+
+        // Show add IP dropdown in employees tab
+        function showAddIpDropdown() {
+            const dropdown = document.getElementById('addIpDropdown');
+            const input = document.getElementById('employeeIpAddress');
+
+            // Clear previous input
+            input.value = '';
+
+            // Show dropdown with animation
+            dropdown.style.display = 'block';
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                dropdown.style.transition = 'all 0.3s ease';
+                dropdown.style.opacity = '1';
+                dropdown.style.transform = 'translateY(0)';
+            }, 10);
+
+            // Focus on input
+            setTimeout(() => {
+                input.focus();
+            }, 300);
+        }
+
+        // Hide add IP dropdown in employees tab
+        function hideAddIpDropdown() {
+            const dropdown = document.getElementById('addIpDropdown');
+
+            dropdown.style.transition = 'all 0.3s ease';
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                dropdown.style.display = 'none';
+            }, 300);
+        }
+
+        // Add IP address from employees tab
+        async function addEmployeeIp() {
+            const inputElement = document.getElementById('employeeIpAddress');
+            const ipAddress = inputElement.value.trim();
+
+            if (!ipAddress) {
+                alert('❌ Пожалуйста, введите IP адрес');
+                inputElement.focus();
+                return;
+            }
+
+            // Basic IP validation
+            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            if (!ipRegex.test(ipAddress)) {
+                alert('❌ Пожалуйста, введите корректный IP адрес в формате XXX.XXX.XXX.XXX');
+                inputElement.focus();
+                return;
+            }
+
+            try {
+                const response = await fetch('/allowed-ips', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ip_address: ipAddress })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ IP адрес успешно добавлен: ' + ipAddress);
+                    inputElement.value = ''; // Clear the input
+                    hideAddIpDropdown(); // Hide the dropdown
+
+                    // Refresh the allowed IPs list if we're on that tab
+                    if (document.getElementById('allowedIpsTab').classList.contains('active')) {
+                        loadAllowedIps();
+                    }
+                } else {
+                    alert('❌ Ошибка добавления IP адреса: ' + result.message);
+                    inputElement.style.backgroundColor = '#f8d7da'; // Light red background
+                    setTimeout(() => {
+                        inputElement.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Reset background
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error adding IP from employees tab:', error);
+                alert('❌ Ошибка при добавлении IP адреса');
+                inputElement.style.backgroundColor = '#f8d7da'; // Light red background
+                setTimeout(() => {
+                    inputElement.style.backgroundColor = 'rgba(255,255,255,0.95)'; // Reset background
+                    }, 2000);
+            }
+        }
+
+        // Show IP list dropdown in employees tab
+        async function showIpListDropdown() {
+            const dropdown = document.getElementById('ipListDropdown');
+            const container = document.getElementById('ipListContainer');
+
+            // Show dropdown with animation
+            dropdown.style.display = 'block';
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                dropdown.style.transition = 'all 0.3s ease';
+                dropdown.style.opacity = '1';
+                dropdown.style.transform = 'translateY(0)';
+            }, 10);
+
+            // Load and display IP list
+            await loadEmployeeIpList();
+        }
+
+        // Hide IP list dropdown in employees tab
+        function hideIpListDropdown() {
+            const dropdown = document.getElementById('ipListDropdown');
+
+            dropdown.style.transition = 'all 0.3s ease';
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                dropdown.style.display = 'none';
+            }, 300);
+        }
+
+        // Load IP list for employees tab
+        async function loadEmployeeIpList() {
+            const container = document.getElementById('ipListContainer');
+
+            try {
+                const response = await fetch('/allowed-ips');
+                const result = await response.json();
+
+                if (result.success) {
+                    displayEmployeeIpList(result.allowed_ips);
+                } else {
+                    container.innerHTML = '<div style="color: #ff6b6b; text-align: center; padding: 20px;">❌ Ошибка загрузки списка IP адресов</div>';
+                }
+            } catch (error) {
+                console.error('Error loading IP list for employees tab:', error);
+                container.innerHTML = '<div style="color: #ff6b6b; text-align: center; padding: 20px;">❌ Ошибка загрузки списка IP адресов</div>';
+            }
+        }
+
+        // Display IP list in employees tab dropdown
+        function displayEmployeeIpList(allowedIps) {
+            const container = document.getElementById('ipListContainer');
+
+            if (allowedIps.length === 0) {
+                container.innerHTML = `
+                    <div style="color: rgba(255,255,255,0.8); text-align: center; padding: 30px;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">📭</div>
+                        <div style="font-size: 18px; margin-bottom: 10px;">Разрешенные IP адреса не найдены</div>
+                        <div style="font-size: 14px;">Добавьте хотя бы один IP адрес для работы системы учета времени</div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div style="max-height: 300px; overflow-y: auto;">';
+
+            allowedIps.forEach((ip, index) => {
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; margin-bottom: 8px; background: rgba(255,255,255,0.1); border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="font-size: 16px; color: #4CAF50;">🖥️</div>
+                            <div>
+                                <div style="font-family: 'Courier New', monospace; font-size: 16px; font-weight: bold; color: white;">${ip}</div>
+                                <div style="font-size: 12px; color: rgba(255,255,255,0.7);">Разрешенный IP адрес</div>
+                            </div>
+                        </div>
+                        <button onclick="removeEmployeeIp('${ip}')" style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: background-color 0.3s;" title="Удалить IP адрес ${ip}">
+                            🗑️ Удалить
+                        </button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            html += `<div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                        <div style="font-size: 14px; color: rgba(255,255,255,0.8);">Всего разрешенных IP адресов: <strong style="color: white;">${allowedIps.length}</strong></div>
+                     </div>`;
+
+            container.innerHTML = html;
+        }
+
+        // Remove IP address from employees tab
+        async function removeEmployeeIp(ipAddress) {
+            if (!confirm(`🗑️ Вы уверены, что хотите удалить IP адрес "${ipAddress}"?\n\n⚠️ Сотрудники с этим IP адресом больше не смогут отмечать время прихода/ухода.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/allowed-ips/${ipAddress}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ IP адрес успешно удален: ' + ipAddress);
+                    // Refresh the list
+                    await loadEmployeeIpList();
+
+                    // Also refresh the main IP management tab if it's active
+                    if (document.getElementById('allowedIpsTab').classList.contains('active')) {
+                        loadAllowedIps();
+                    }
+                } else {
+                    alert('❌ Ошибка удаления IP адреса: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error removing IP from employees tab:', error);
+                alert('❌ Ошибка при удалении IP адреса');
+            }
+        }
+
+        // Load allowed IPs
+        async function loadAllowedIps() {
+            try {
+                const response = await fetch('/allowed-ips');
+                const result = await response.json();
+
+                if (result.success) {
+                    displayAllowedIps(result.allowed_ips);
+                } else {
+                    document.getElementById('allowedIpsList').innerHTML =
+                        '<div class="loading" style="color: #dc3545;">❌ Ошибка загрузки списка IP адресов</div>';
+                }
+            } catch (error) {
+                console.error('Error loading allowed IPs:', error);
+                document.getElementById('allowedIpsList').innerHTML =
+                    '<div class="loading" style="color: #dc3545;">❌ Ошибка загрузки списка IP адресов</div>';
+            }
+        }
+
+        // Refresh allowed IPs (alias for loadAllowedIps)
+        async function refreshAllowedIps() {
+            await loadAllowedIps();
+        }
+
+        // Display allowed IPs
+        function displayAllowedIps(allowedIps) {
+            if (allowedIps.length === 0) {
+                document.getElementById('allowedIpsList').innerHTML =
+                    '<div class="loading" style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border: 1px solid #ffeaa7;">⚠️ Разрешенные IP адреса не найдены.<br>Добавьте хотя бы один IP адрес для работы системы учета времени.</div>';
+                return;
+            }
+
+            let html = '<div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">';
+            html += '<div style="background: #007bff; color: white; padding: 15px; font-weight: bold; font-size: 16px;">📋 Список разрешенных IP адресов</div>';
+            html += '<div style="padding: 0;">';
+
+            allowedIps.forEach((ip, index) => {
+                html += '<div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid #eee; background: ' + (index % 2 === 0 ? '#f8f9fa' : 'white') + ';">';
+                html += `<div style="font-family: 'Courier New', monospace; font-size: 16px; font-weight: bold; color: #007bff;">${ip}</div>`;
+                html += '<div>';
+                html += `<button onclick="removeAllowedIp('${ip}')" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;" title="Удалить IP адрес ${ip}">🗑️ Удалить</button>`;
+                html += '</div>';
+                html += '</div>';
+            });
+
+            html += '</div>';
+            html += '</div>';
+
+            document.getElementById('allowedIpsList').innerHTML = html;
+        }
+
+        // Add allowed IP
+        async function addAllowedIp() {
+            const ipInput = document.getElementById('newIpAddress');
+            const ipAddress = ipInput.value.trim();
+
+            if (!ipAddress) {
+                alert('❌ Пожалуйста, введите IP адрес');
+                ipInput.focus();
+                return;
+            }
+
+            // Basic IP validation
+            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            if (!ipRegex.test(ipAddress)) {
+                alert('❌ Пожалуйста, введите корректный IP адрес в формате XXX.XXX.XXX.XXX');
+                ipInput.focus();
+                return;
+            }
+
+            try {
+                const response = await fetch('/allowed-ips', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ip_address: ipAddress })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ IP адрес успешно добавлен: ' + ipAddress);
+                    ipInput.value = '';
+                    loadAllowedIps(); // Refresh the list
+                } else {
+                    alert('❌ Ошибка добавления IP адреса: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error adding IP:', error);
+                alert('❌ Ошибка при добавлении IP адреса');
+            }
+        }
+
+        // Remove allowed IP
+        async function removeAllowedIp(ipAddress) {
+            if (!confirm(`🗑️ Вы уверены, что хотите удалить IP адрес "${ipAddress}"?\n\n⚠️ Сотрудники с этим IP адресом больше не смогут отмечать время прихода/ухода.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/allowed-ips/${ipAddress}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ IP адрес успешно удален: ' + ipAddress);
+                    loadAllowedIps(); // Refresh the list
+                } else {
+                    alert('❌ Ошибка удаления IP адреса: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error removing IP:', error);
+                alert('❌ Ошибка при удалении IP адреса');
+            }
+        }
+
+        // Add bulk IP (individual)
+        async function addBulkIp(index) {
+            const inputElement = document.getElementById(`bulkIp${index}`);
+            const ipAddress = inputElement.value.trim();
+
+            if (!ipAddress) {
+                alert(`❌ Пожалуйста, введите IP адрес в поле ${index}`);
+                inputElement.focus();
+                return;
+            }
+
+            // Basic IP validation
+            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            if (!ipRegex.test(ipAddress)) {
+                alert(`❌ Пожалуйста, введите корректный IP адрес в поле ${index} в формате XXX.XXX.XXX.XXX`);
+                inputElement.focus();
+                return;
+            }
+
+            try {
+                const response = await fetch('/allowed-ips', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ip_address: ipAddress })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✅ IP адрес ${index} успешно добавлен: ${ipAddress}`);
+                    inputElement.value = ''; // Clear the input
+                    inputElement.style.backgroundColor = '#d4edda'; // Light green background
+                    setTimeout(() => {
+                        inputElement.style.backgroundColor = 'rgba(255,255,255,0.9)'; // Reset background
+                    }, 2000);
+                    loadAllowedIps(); // Refresh the list
+                } else {
+                    alert(`❌ Ошибка добавления IP адреса ${index}: ${result.message}`);
+                    inputElement.style.backgroundColor = '#f8d7da'; // Light red background
+                    setTimeout(() => {
+                        inputElement.style.backgroundColor = 'rgba(255,255,255,0.9)'; // Reset background
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error adding bulk IP:', error);
+                alert(`❌ Ошибка при добавлении IP адреса ${index}`);
+                inputElement.style.backgroundColor = '#f8d7da'; // Light red background
+                setTimeout(() => {
+                    inputElement.style.backgroundColor = 'rgba(255,255,255,0.9)'; // Reset background
+                    }, 2000);
+            }
+        }
+
+        // Add all bulk IPs at once
+        async function addAllBulkIps() {
+            let addedCount = 0;
+            let errorCount = 0;
+            const results = [];
+
+            for (let i = 1; i <= 10; i++) {
+                const inputElement = document.getElementById(`bulkIp${i}`);
+                const ipAddress = inputElement.value.trim();
+
+                if (!ipAddress) {
+                    continue; // Skip empty fields
+                }
+
+                // Basic IP validation
+                const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+                if (!ipRegex.test(ipAddress)) {
+                    results.push(`❌ IP ${i}: Некорректный формат`);
+                    errorCount++;
+                    inputElement.style.backgroundColor = '#f8d7da';
+                    continue;
+                }
+
+                try {
+                    const response = await fetch('/allowed-ips', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ ip_address: ipAddress })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        results.push(`✅ IP ${i}: ${ipAddress} - добавлен`);
+                        addedCount++;
+                        inputElement.value = '';
+                        inputElement.style.backgroundColor = '#d4edda';
+                    } else {
+                        results.push(`❌ IP ${i}: ${ipAddress} - ${result.message}`);
+                        errorCount++;
+                        inputElement.style.backgroundColor = '#f8d7da';
+                    }
+                } catch (error) {
+                    results.push(`❌ IP ${i}: Ошибка сети`);
+                    errorCount++;
+                    inputElement.style.backgroundColor = '#f8d7da';
+                }
+            }
+
+            // Reset backgrounds after 3 seconds
+            setTimeout(() => {
+                for (let i = 1; i <= 10; i++) {
+                    const inputElement = document.getElementById(`bulkIp${i}`);
+                    inputElement.style.backgroundColor = 'rgba(255,255,255,0.9)';
+                }
+            }, 3000);
+
+            // Show results
+            if (addedCount > 0) {
+                loadAllowedIps(); // Refresh the list
+            }
+
+            const message = `Результаты добавления IP адресов:\n\n${results.join('\n')}\n\n✅ Успешно добавлено: ${addedCount}\n❌ Ошибок: ${errorCount}`;
+            alert(message);
+        }
+
+        // Toggle entries list visibility
+        function toggleEntriesList() {
+            const container = document.getElementById('entriesContainer');
+            const toggle = document.getElementById('entriesToggle');
+
+            if (container.classList.contains('collapsed')) {
+                // Expand
+                container.classList.remove('collapsed');
+                toggle.classList.remove('collapsed');
+                toggle.textContent = '▼';
+            } else {
+                // Collapse
+                container.classList.add('collapsed');
+                toggle.classList.add('collapsed');
+                toggle.textContent = '▶';
+            }
+        }
+
+        // Initialize dashboard when page loads
+        window.addEventListener('DOMContentLoaded', loadCurrentUser);
+    </script>
+</body>
+</html>
