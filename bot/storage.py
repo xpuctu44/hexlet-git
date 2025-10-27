@@ -1,6 +1,6 @@
 import aiosqlite
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 
 class Storage:
@@ -41,21 +41,178 @@ class Storage:
 				);
 				"""
 			)
-			# Try to add OpenAI key column if not present
 			try:
 				await db.execute("ALTER TABLE users ADD COLUMN openai_api_key TEXT")
 			except Exception:
 				pass
-			# Add sleep_hours column if missing (REAL to allow fractional hours)  # добавляем колонку часов сна, если её нет
 			try:
-				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL")  # может хранить дробные значения
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL")
 			except Exception:
-				pass  # колонка уже существует — игнорируем
-			# Add sleep_pending flag similar to calories pending  # флаг ожидания ввода часов сна на сегодня
+				pass
 			try:
-				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")  # 0/1
+				await db.execute("ALTER TABLE daily_activity ADD COLUMN sleep_pending INTEGER DEFAULT 0")
 			except Exception:
-				pass  # колонка уже существует — игнорируем
+				pass
+			# Add role column to users table
+			try:
+				await db.execute("ALTER TABLE users ADD COLUMN role TEXT")
+			except Exception:
+				pass
+			# Add client_id column to users table for linking bot users to clients
+			try:
+				await db.execute("ALTER TABLE users ADD COLUMN client_id INTEGER")
+			except Exception:
+				pass
+			# Clients table
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS clients (
+					client_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					full_name TEXT NOT NULL,
+					phone TEXT,
+					car_make_model TEXT,
+					year INTEGER,
+					mileage INTEGER,
+					body_type TEXT,
+					color TEXT,
+					engine_number TEXT,
+					car_class TEXT,
+					vin TEXT,
+					plate TEXT,
+					sts TEXT,
+					pts TEXT,
+					reason TEXT,
+					balance REAL DEFAULT 0,
+					is_bot_client INTEGER DEFAULT 0,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+				"""
+			)
+			# Ensure balance column exists (for migrations)
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN balance REAL DEFAULT 0")
+			except Exception:
+				pass
+			# Ensure mileage column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN mileage INTEGER")
+			except Exception:
+				pass
+			# Ensure new vehicle detail columns exist
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN body_type TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN color TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN engine_number TEXT")
+			except Exception:
+				pass
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN car_class TEXT")
+			except Exception:
+				pass
+			# Ensure pts column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN pts TEXT")
+			except Exception:
+				pass
+			# Ensure is_bot_client column exists
+			try:
+				await db.execute("ALTER TABLE clients ADD COLUMN is_bot_client INTEGER DEFAULT 0")
+				print("DEBUG: Added is_bot_client column to clients table")  # Debug log
+			except Exception as e:
+				print(f"DEBUG: is_bot_client column already exists or error: {e}")  # Debug log
+			# Vehicles table for garage
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS vehicles (
+					vehicle_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					client_id INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL,
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
+			# Parts and jobs
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS parts (
+					part_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					vehicle_id INTEGER NOT NULL,
+					name TEXT NOT NULL,
+					price REAL NOT NULL,
+					qty REAL DEFAULT 1,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
+				);
+				"""
+			)
+			# Ensure qty column exists for parts
+			try:
+				await db.execute("ALTER TABLE parts ADD COLUMN qty REAL DEFAULT 1")
+			except Exception:
+				pass
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS jobs (
+					job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					vehicle_id INTEGER NOT NULL,
+					name TEXT NOT NULL,
+					price REAL NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
+				);
+				"""
+			)
+			# Orders table
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS orders (
+					order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					order_number INTEGER NOT NULL,
+					vehicle_id INTEGER NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(vehicle_id) REFERENCES vehicles(vehicle_id)
+				);
+				"""
+			)
+			await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number)")
+			# Payments
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS payments (
+					payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					client_id INTEGER NOT NULL,
+					amount REAL NOT NULL,
+					created_at TEXT NOT NULL,
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
+			# Messages for chat between clients and admin
+			await db.execute(
+				"""
+				CREATE TABLE IF NOT EXISTS messages (
+					message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					from_user_id INTEGER NOT NULL,
+					to_user_id INTEGER,
+					client_id INTEGER,
+					message_text TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					is_read INTEGER DEFAULT 0,
+					FOREIGN KEY(from_user_id) REFERENCES users(user_id),
+					FOREIGN KEY(to_user_id) REFERENCES users(user_id),
+					FOREIGN KEY(client_id) REFERENCES clients(client_id)
+				);
+				"""
+			)
 			await db.commit()
 
 	async def upsert_user(self, tg_user_id: int, chat_id: int, username: Optional[str]) -> int:
@@ -88,7 +245,7 @@ class Storage:
 	async def get_user_by_tg(self, tg_user_id: int) -> Optional[Dict[str, Any]]:
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
-				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg, openai_api_key FROM users WHERE tg_user_id=?",
+				"SELECT user_id, tg_user_id, chat_id, username, height_cm, weight_kg, desired_weight_kg, openai_api_key, role, client_id FROM users WHERE tg_user_id=?",
 				(tg_user_id,),
 			)
 			row = await cursor.fetchone()
@@ -103,6 +260,8 @@ class Storage:
 				"weight_kg": row[5],
 				"desired_weight_kg": row[6],
 				"openai_api_key": row[7],
+				"role": row[8] or "client",
+				"client_id": row[9],
 			}
 
 	async def update_profile(self, user_id: int, height_cm: int, weight_kg: float) -> None:
@@ -192,7 +351,6 @@ class Storage:
 			return None if not row else row[0]
 
 	async def set_daily_sleep_pending(self, user_id: int, date_str: str) -> None:
-		# Помечаем, что для пользователя ожидается ввод часов сна за текущую дату
 		async with aiosqlite.connect(self.db_path) as db:
 			await db.execute(
 				"""
@@ -204,7 +362,6 @@ class Storage:
 			await db.commit()
 
 	async def set_daily_sleep_hours(self, user_id: int, date_str: str, hours: float) -> None:
-		# Сохраняем часы сна и снимаем флаг ожидания
 		async with aiosqlite.connect(self.db_path) as db:
 			await db.execute(
 				"""
@@ -216,7 +373,6 @@ class Storage:
 			await db.commit()
 
 	async def has_pending_sleep(self, user_id: int, date_str: str) -> bool:
-		# Проверяем, ожидается ли ввод часов сна на эту дату
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"SELECT sleep_pending FROM daily_activity WHERE user_id=? AND date=?",
@@ -226,7 +382,6 @@ class Storage:
 			return bool(row and row[0] == 1)
 
 	async def get_today_sleep_hours(self, user_id: int, date_str: str) -> Optional[float]:
-		# Получаем сохраненные часы сна за дату (если есть)
 		async with aiosqlite.connect(self.db_path) as db:
 			cursor = await db.execute(
 				"SELECT sleep_hours FROM daily_activity WHERE user_id=? AND date=?",
@@ -234,3 +389,577 @@ class Storage:
 			)
 			row = await cursor.fetchone()
 			return None if not row else row[0]
+
+	# ===== Clients and Garage =====
+	async def create_client(self, full_name: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO clients(full_name, created_at, updated_at)
+				VALUES(?,?,?)
+				""",
+				(full_name, now, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def update_client_contact(self, client_id: int, phone: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET phone=?, updated_at=? WHERE client_id=?",
+				(phone, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_car(self, client_id: int, car_make_model: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET car_make_model=?, updated_at=? WHERE client_id=?",
+				(car_make_model, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_year(self, client_id: int, year: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET year=?, updated_at=? WHERE client_id=?",
+				(year, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_vin(self, client_id: int, vin: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET vin=?, updated_at=? WHERE client_id=?",
+				(vin, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_plate(self, client_id: int, plate: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET plate=?, updated_at=? WHERE client_id=?",
+				(plate, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_sts(self, client_id: int, sts: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET sts=?, updated_at=? WHERE client_id=?",
+				(sts, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_reason(self, client_id: int, reason: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET reason=?, updated_at=? WHERE client_id=?",
+				(reason, now, client_id),
+			)
+			await db.commit()
+
+	async def adjust_client_balance(self, client_id: int, delta: float) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET balance = COALESCE(balance,0) + ? WHERE client_id=?",
+				(delta, client_id),
+			)
+			await db.commit()
+
+	async def get_client(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT client_id, full_name, phone, car_make_model, year, mileage, body_type, color, engine_number, car_class, vin, plate, sts, pts, reason, balance, is_bot_client
+				FROM clients WHERE client_id=?
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"client_id": row[0],
+				"full_name": row[1],
+				"phone": row[2],
+				"car_make_model": row[3],
+				"year": row[4],
+				"mileage": row[5],
+				"body_type": row[6],
+				"color": row[7],
+				"engine_number": row[8],
+				"car_class": row[9],
+				"vin": row[10],
+				"plate": row[11],
+				"sts": row[12],
+				"pts": row[13],
+				"reason": row[14],
+				"balance": row[15],
+				"is_bot_client": row[16],
+			}
+
+	async def list_clients(self, limit: int = 20) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT client_id, full_name, phone, car_make_model, plate, balance
+				FROM clients
+				WHERE is_bot_client = 0 OR is_bot_client IS NULL
+				ORDER BY client_id DESC LIMIT ?
+				""",
+				(limit,),
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"client_id": r[0],
+					"full_name": r[1],
+					"phone": r[2],
+					"car_make_model": r[3],
+					"plate": r[4],
+					"balance": r[5],
+				}
+				for r in rows
+			]
+
+	async def update_client_body_type(self, client_id: int, body_type: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET body_type=?, updated_at=? WHERE client_id=?",
+				(body_type, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_color(self, client_id: int, color: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET color=?, updated_at=? WHERE client_id=?",
+				(color, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_engine_number(self, client_id: int, engine_number: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET engine_number=?, updated_at=? WHERE client_id=?",
+				(engine_number, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_car_class(self, client_id: int, car_class: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET car_class=?, updated_at=? WHERE client_id=?",
+				(car_class, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_mileage(self, client_id: int, mileage: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET mileage=?, updated_at=? WHERE client_id=?",
+				(mileage, now, client_id),
+			)
+			await db.commit()
+
+	async def update_client_pts(self, client_id: int, pts: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE clients SET pts=?, updated_at=? WHERE client_id=?",
+				(pts, now, client_id),
+			)
+			await db.commit()
+
+	async def create_vehicle_from_client(self, client_id: int) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO vehicles(client_id, status, created_at, updated_at)
+				VALUES(?, 'in_garage', ?, ?)
+				""",
+				(client_id, now, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def get_vehicle_with_client(self, vehicle_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT v.vehicle_id, v.client_id, v.status, v.created_at,
+				       c.full_name, c.balance
+				FROM vehicles v JOIN clients c ON c.client_id = v.client_id
+				WHERE v.vehicle_id=?
+				""",
+				(vehicle_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"vehicle_id": row[0],
+				"client_id": row[1],
+				"status": row[2],
+				"created_at": row[3],
+				"full_name": row[4],
+				"balance": row[5],
+			}
+
+	async def list_garage(self) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT v.vehicle_id, v.client_id, v.status, v.created_at,
+				       c.full_name, c.car_make_model, c.plate, c.vin
+				FROM vehicles v
+				JOIN clients c ON c.client_id = v.client_id
+				WHERE v.status='in_garage'
+				ORDER BY v.vehicle_id DESC
+				"""
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"vehicle_id": r[0],
+					"client_id": r[1],
+					"status": r[2],
+					"created_at": r[3],
+					"full_name": r[4],
+					"car_make_model": r[5],
+					"plate": r[6],
+					"vin": r[7],
+				}
+				for r in rows
+			]
+
+	async def set_vehicle_status(self, vehicle_id: int, status: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE vehicles SET status=?, updated_at=? WHERE vehicle_id=?",
+				(status, now, vehicle_id),
+			)
+			await db.commit()
+
+	# ===== Parts and Jobs =====
+	async def add_part(self, vehicle_id: int, name: str, price: float, qty: float = 1.0) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO parts(vehicle_id, name, price, qty, created_at)
+				VALUES(?,?,?,?,?)
+				""",
+				(vehicle_id, name, price, qty, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def add_job(self, vehicle_id: int, name: str, price: float) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO jobs(vehicle_id, name, price, created_at)
+				VALUES(?,?,?,?)
+				""",
+				(vehicle_id, name, price, now),
+			)
+			await db.commit()
+			return cursor.lastrowid
+
+	async def list_items_for_vehicle(self, vehicle_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			c1 = await db.execute("SELECT part_id, name, price, qty FROM parts WHERE vehicle_id=? ORDER BY part_id DESC", (vehicle_id,))
+			parts = [
+				{"part_id": r[0], "name": r[1], "price": r[2], "qty": r[3]}
+				for r in await c1.fetchall()
+			]
+			c2 = await db.execute("SELECT job_id, name, price FROM jobs WHERE vehicle_id=? ORDER BY job_id DESC", (vehicle_id,))
+			jobs = [
+				{"job_id": r[0], "name": r[1], "price": r[2]}
+				for r in await c2.fetchall()
+			]
+			return parts, jobs
+
+	async def delete_part(self, part_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT vehicle_id, price FROM parts WHERE part_id=?", (part_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			vehicle_id, price = row[0], row[1]
+			await db.execute("DELETE FROM parts WHERE part_id=?", (part_id,))
+			await db.commit()
+			return vehicle_id, float(price)
+
+	async def delete_job(self, job_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT vehicle_id, price FROM jobs WHERE job_id=?", (job_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			vehicle_id, price = row[0], row[1]
+			await db.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+			await db.commit()
+			return vehicle_id, float(price)
+
+	async def get_next_order_number(self) -> int:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT COALESCE(MAX(order_number), 0) FROM orders")
+			row = await cur.fetchone()
+			return int(row[0] or 0) + 1
+
+	async def create_order(self, vehicle_id: int) -> int:
+		now = datetime.utcnow().isoformat()
+		order_number = await self.get_next_order_number()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"INSERT INTO orders(order_number, vehicle_id, created_at) VALUES(?,?,?)",
+				(order_number, vehicle_id, now),
+			)
+			await db.commit()
+		return order_number
+
+	async def add_payment(self, client_id: int, amount: float) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute(
+				"INSERT INTO payments(client_id, amount, created_at) VALUES(?,?,?)",
+				(client_id, amount, now),
+			)
+			await db.commit()
+			return cur.lastrowid
+
+	async def list_payments(self, client_id: int) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute(
+				"SELECT payment_id, amount, created_at FROM payments WHERE client_id=? ORDER BY payment_id DESC",
+				(client_id,),
+			)
+			rows = await cur.fetchall()
+			return [
+				{"payment_id": r[0], "amount": r[1], "created_at": r[2]}
+				for r in rows
+			]
+
+	async def delete_payment(self, payment_id: int) -> Optional[Tuple[int, float]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cur = await db.execute("SELECT client_id, amount FROM payments WHERE payment_id=?", (payment_id,))
+			row = await cur.fetchone()
+			if not row:
+				return None
+			client_id, amount = row[0], row[1]
+			await db.execute("DELETE FROM payments WHERE payment_id=?", (payment_id,))
+			await db.commit()
+			return client_id, float(amount)
+
+	async def delete_client(self, client_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			# Find vehicles for this client
+			cur = await db.execute("SELECT vehicle_id FROM vehicles WHERE client_id=?", (client_id,))
+			vehicle_ids = [r[0] for r in await cur.fetchall()]
+			# Delete dependent records
+			for vid in vehicle_ids:
+				await db.execute("DELETE FROM parts WHERE vehicle_id=?", (vid,))
+				await db.execute("DELETE FROM jobs WHERE vehicle_id=?", (vid,))
+				await db.execute("DELETE FROM orders WHERE vehicle_id=?", (vid,))
+			await db.execute("DELETE FROM vehicles WHERE client_id=?", (client_id,))
+			await db.execute("DELETE FROM payments WHERE client_id=?", (client_id,))
+			await db.execute("DELETE FROM clients WHERE client_id=?", (client_id,))
+			await db.commit()
+
+	async def set_user_role(self, tg_user_id: int, role: str) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE users SET role=?, updated_at=? WHERE tg_user_id=?",
+				(role, now, tg_user_id),
+			)
+			await db.commit()
+
+	async def reset_user_registration(self, tg_user_id: int) -> None:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			# Reset user role and client_id
+			await db.execute(
+				"UPDATE users SET role=NULL, client_id=NULL, updated_at=? WHERE tg_user_id=?",
+				(now, tg_user_id),
+			)
+			await db.commit()
+
+	async def create_bot_client(self, tg_user_id: int, full_name: str, phone: str, car_make_model: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO clients(full_name, phone, car_make_model, is_bot_client, created_at, updated_at)
+				VALUES(?,?,?,?,?,?)
+				""",
+				(full_name, phone, car_make_model, 1, now, now),
+			)
+			client_id = cursor.lastrowid
+			# Link the bot user to the client
+			await db.execute(
+				"UPDATE users SET client_id=? WHERE tg_user_id=?",
+				(client_id, tg_user_id),
+			)
+			await db.commit()
+			print(f"DEBUG: Created bot client {client_id} for user {tg_user_id}")  # Debug log
+			return client_id
+
+	async def get_user_client_id(self, tg_user_id: int) -> Optional[int]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"SELECT client_id FROM users WHERE tg_user_id=?",
+				(tg_user_id,),
+			)
+			row = await cursor.fetchone()
+			return row[0] if row and row[0] else None
+
+	async def send_message(self, from_user_id: int, to_user_id: Optional[int], client_id: Optional[int], message_text: str) -> int:
+		now = datetime.utcnow().isoformat()
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				INSERT INTO messages(from_user_id, to_user_id, client_id, message_text, created_at)
+				VALUES(?,?,?,?,?)
+				""",
+				(from_user_id, to_user_id, client_id, message_text, now),
+			)
+			await db.commit()
+			message_id = cursor.lastrowid
+			print(f"DEBUG: send_message - from_user: {from_user_id}, to_user: {to_user_id}, client: {client_id}, message_id: {message_id}")  # Debug log
+			return message_id
+
+	async def get_messages_for_admin(self) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT m.message_id, m.message_text, m.created_at, m.is_read, m.client_id,
+					   c.full_name, c.phone, c.car_make_model
+				FROM messages m
+				JOIN clients c ON m.client_id = c.client_id
+				WHERE m.to_user_id IS NULL AND c.is_bot_client = 1
+				ORDER BY m.created_at DESC
+				""",
+			)
+			rows = await cursor.fetchall()
+			print(f"DEBUG: get_messages_for_admin found {len(rows)} messages")  # Debug log
+			for row in rows:
+				print(f"DEBUG: Message - ID: {row[0]}, Client: {row[4]} ({row[5]}), Text: {row[1][:50]}...")  # Debug log
+			return [
+				{
+					"message_id": r[0],
+					"message_text": r[1],
+					"created_at": r[2],
+					"is_read": bool(r[3]),
+					"client_id": r[4],
+					"client_name": r[5],
+					"client_phone": r[6],
+					"client_car": r[7],
+				}
+				for r in rows
+			]
+
+	async def get_messages_for_client(self, client_id: int) -> List[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT m.message_id, m.message_text, m.created_at, m.from_user_id,
+					   u.role, u.username
+				FROM messages m
+				JOIN users u ON m.from_user_id = u.user_id
+				WHERE m.client_id = ?
+				ORDER BY m.created_at ASC
+				""",
+				(client_id,),
+			)
+			rows = await cursor.fetchall()
+			return [
+				{
+					"message_id": r[0],
+					"message_text": r[1],
+					"created_at": r[2],
+					"from_user_id": r[3],
+					"from_role": r[4],
+					"from_username": r[5],
+				}
+				for r in rows
+			]
+
+	async def mark_message_read(self, message_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE messages SET is_read=1 WHERE message_id=?",
+				(message_id,),
+			)
+			await db.commit()
+
+	async def get_client_chat_info(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT u.tg_user_id, u.chat_id, c.full_name
+				FROM users u
+				JOIN clients c ON u.client_id = c.client_id
+				WHERE c.client_id = ?
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			if not row:
+				return None
+			return {
+				"tg_user_id": row[0],
+				"chat_id": row[1],
+				"client_name": row[2],
+			}
+
+	async def reset_user_registration(self, tg_user_id: int) -> None:
+		async with aiosqlite.connect(self.db_path) as db:
+			await db.execute(
+				"UPDATE users SET role=NULL, client_id=NULL WHERE tg_user_id=?",
+				(tg_user_id,),
+			)
+			await db.commit()
+
+	async def get_client_chat_info(self, client_id: int) -> Optional[Dict[str, Any]]:
+		async with aiosqlite.connect(self.db_path) as db:
+			cursor = await db.execute(
+				"""
+				SELECT u.chat_id, u.tg_user_id, c.full_name
+				FROM clients c
+				JOIN users u ON u.client_id = c.client_id
+				WHERE c.client_id = ? AND c.is_bot_client = 1
+				""",
+				(client_id,),
+			)
+			row = await cursor.fetchone()
+			print(f"DEBUG: get_client_chat_info for client_id {client_id} - found: {row is not None}")  # Debug log
+			if row:
+				print(f"DEBUG: Client chat info - chat_id: {row[0]}, tg_user_id: {row[1]}, name: {row[2]}")  # Debug log
+			if not row:
+				print(f"DEBUG: No chat info found for client_id {client_id}")  # Debug log
+				return None
+			return {
+				"chat_id": row[0],
+				"tg_user_id": row[1],
+				"full_name": row[2],
+			}

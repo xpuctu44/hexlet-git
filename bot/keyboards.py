@@ -1,23 +1,68 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def main_menu_kb() -> InlineKeyboardMarkup:
+def user_type_selection_kb() -> InlineKeyboardMarkup:
 	return InlineKeyboardMarkup(
 		inline_keyboard=[
 			[
-				InlineKeyboardButton(text="Профиль пользователя", callback_data="menu_profile"),
+				InlineKeyboardButton(text="Админ", callback_data="select_admin"),
 			],
 			[
-				InlineKeyboardButton(text="Цели", callback_data="menu_goals"),
+				InlineKeyboardButton(text="Клиент", callback_data="select_client"),
 			],
+		]
+	)
+
+
+def admin_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
 			[
 				InlineKeyboardButton(text="Подключить ChatGPT", callback_data="menu_connect_openai"),
 			],
 			[
-				InlineKeyboardButton(text="Тренировка на сегодня", callback_data="menu_workout"),
+				InlineKeyboardButton(text="Клиенты", callback_data="menu_clients"),
 			],
 			[
-				InlineKeyboardButton(text="Питание на сегодня", callback_data="menu_meals"),
+				InlineKeyboardButton(text="Принять машину в ремонт", callback_data="menu_accept_car"),
+			],
+			[
+				InlineKeyboardButton(text="Гараж", callback_data="menu_garage"),
+			],
+			[
+				InlineKeyboardButton(text="Создать заказ-наряд", callback_data="menu_create_order"),
+			],
+		]
+	)
+
+
+def client_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root"),
+			],
+		]
+	)
+
+
+def main_menu_kb() -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[
+			[
+				InlineKeyboardButton(text="Подключить ChatGPT", callback_data="menu_connect_openai"),
+			],
+			[
+				InlineKeyboardButton(text="Клиенты", callback_data="menu_clients"),
+			],
+			[
+				InlineKeyboardButton(text="Принять машину в ремонт", callback_data="menu_accept_car"),
+			],
+			[
+				InlineKeyboardButton(text="Гараж", callback_data="menu_garage"),
+			],
+			[
+				InlineKeyboardButton(text="Создать заказ-наряд", callback_data="menu_create_order"),
 			],
 		]
 	)
@@ -30,14 +75,20 @@ def meals_complexity_kb() -> InlineKeyboardMarkup:
 				InlineKeyboardButton(text="Простой", callback_data="menu_meals_simple"),
 				InlineKeyboardButton(text="Изысканный", callback_data="menu_meals_gourmet"),
 			],
-			[
-				InlineKeyboardButton(text="⬅️ Назад", callback_data="menu_root"),
-			],
 		]
 	)
 
 
 def back_to_menu_kb() -> InlineKeyboardMarkup:
 	return InlineKeyboardMarkup(
-		inline_keyboard=[[InlineKeyboardButton(text="⬅️ В меню", callback_data="menu_root")]]
+		inline_keyboard=[]
+	)
+
+
+def nav_kb(back_callback: str) -> InlineKeyboardMarkup:
+	return InlineKeyboardMarkup(
+		inline_keyboard=[[
+			InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+			InlineKeyboardButton(text="🏠 В главное меню", callback_data="menu_root"),
+		]]
 	)
